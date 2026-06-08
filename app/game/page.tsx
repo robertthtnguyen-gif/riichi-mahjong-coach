@@ -16,6 +16,7 @@ function GameTable({ initialState }: { initialState: GameState }) {
   const { state, drawTile, discardTile, riichi, chi, pon, kan, opponentDiscard, opponentRiichi } =
     useGameState(initialState);
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
+  const router = useRouter();
 
   function handleDrawTile(tile: Tile) {
     drawTile(tile);
@@ -57,6 +58,13 @@ function GameTable({ initialState }: { initialState: GameState }) {
             <span className="rounded bg-gray-700 px-2 py-0.5 text-xs font-medium capitalize text-gray-300">
               {state.phase === 'draw' ? 'Draw Phase' : 'Discard Phase'}
             </span>
+            <button
+              type="button"
+              onClick={() => router.push('/')}
+              className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-200 transition-colors hover:bg-emerald-500/20 hover:text-white sm:text-sm"
+            >
+              New Game
+            </button>
           </div>
         </div>
       </header>
