@@ -87,6 +87,11 @@ export interface PossibleYakuOptions {
   openTanyaoEnabled?: boolean;
 }
 
+export interface WinningTileAnalysis {
+  tile: Tile;
+  result: YakuDetectionResult;
+}
+
 type SuitIndex = 0 | 1 | 2;
 
 interface NormalizedContext {
@@ -183,6 +188,32 @@ function tileToIndex(tile: Tile): number {
   if (tile.suit === 'sou') return 18 + (tile.value as number) - 1;
   if (tile.suit === 'wind') return 27 + WIND_IDX[tile.value as WindValue];
   return 31 + DRAGON_IDX[tile.value as DragonValue];
+}
+
+function tileFromIndex(index: number, id: string): Tile {
+  if (index < 9) {
+    return { suit: 'man', value: index + 1, isRed: false, id };
+  }
+  if (index < 18) {
+    return { suit: 'pin', value: index - 8, isRed: false, id };
+  }
+  if (index < 27) {
+    return { suit: 'sou', value: index - 17, isRed: false, id };
+  }
+  if (index < 31) {
+    return {
+      suit: 'wind',
+      value: (['east', 'south', 'west', 'north'] as const)[index - 27],
+      isRed: false,
+      id,
+    };
+  }
+  return {
+    suit: 'dragon',
+    value: (['red', 'green', 'white'] as const)[index - 31],
+    isRed: false,
+    id,
+  };
 }
 
 function buildCounts(tiles: Tile[]): number[] {
@@ -918,6 +949,38 @@ function buildWarnings(entries: YakuEntry[], complete: boolean): string[] {
   return [];
 }
 
+function buildCurrentYakuEntries(ctx: NormalizedContext): YakuEntry[] {
+  const entries: YakuEntry[] = [];
+  const closed = isClosedHand(ctx.melds);
+
+  if (ctx.doubleRiichi && closed) {
+    entries.push({ name: 'double-riichi', han: 2 });
+  } else if (ctx.riichi && closed) {
+    entries.push({ name: 'riichi', han: 1 });
+  }
+
+  if ((ctx.riichi || ctx.doubleRiichi) && ctx.ippatsu && closed) {
+    entries.push({ name: 'ippatsu', han: 1 });
+  }
+
+  const yakuhaiHan = createBlocksForMelds(ctx.melds)
+    .filter(block => block.kind === 'triplet' || block.kind === 'quad')
+    .reduce(
+      (sum, block) => sum + yakuhaiHanForIndex(block.startIndex, ctx.seatWind, ctx.roundWind),
+      0
+    );
+  if (yakuhaiHan > 0) {
+    entries.push({ name: 'yakuhai', han: yakuhaiHan });
+  }
+
+  const quadCount = createBlocksForMelds(ctx.melds).filter(block => block.kind === 'quad').length;
+  if (quadCount >= 3) {
+    entries.push({ name: 'sankantsu', han: 2 });
+  }
+
+  return aggregateYaku(entries);
+}
+
 export function suggestPossibleYaku(
   rawCtx: YakuContext,
   options: PossibleYakuOptions = {}
@@ -999,6 +1062,48 @@ export function suggestPossibleYaku(
 
   const bonus = detectBonusYaku(ctx);
   return aggregateYaku([...possible, ...bonus]);
+}
+
+export function detectCurrentYaku(rawCtx: YakuContext): YakuEntry[] {
+  const ctx = normalizeContext(rawCtx);
+  if (isCompleteHand(ctx)) {
+    return detectYaku(rawCtx).yaku;
+  }
+  return buildCurrentYakuEntries(ctx);
+}
+
+export function findWinningTiles(rawCtx: YakuContext): WinningTileAnalysis[] {
+  const ctx = normalizeContext(rawCtx);
+  if (ctx.hand.length % 3 !== 1) {
+    return [];
+  }
+
+  const counts = buildCounts(ctx.hand);
+  const results: WinningTileAnalysis[] = [];
+
+  for (let index = 0; index < 34; index += 1) {
+    if (counts[index] >= 4) {
+      continue;
+    }
+
+    const candidateTile = tileFromIndex(index, `wait-${index}`);
+    const result = detectYaku({
+      ...rawCtx,
+      hand: [...rawCtx.hand, candidateTile],
+      winningTile: candidateTile,
+      winMethod: rawCtx.winMethod ?? 'ron',
+      isTsumo: false,
+    });
+
+    if (
+      result.yaku.length > 0 &&
+      (result.isYakuman || hasRealYaku(result.yaku))
+    ) {
+      results.push({ tile: candidateTile, result });
+    }
+  }
+
+  return results;
 }
 
 export function detectYaku(rawCtx: YakuContext): YakuDetectionResult {

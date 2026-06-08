@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { parseTileNotation } from './tileParser';
-import { detectYaku, suggestPossibleYaku, YakuContext, YakuName } from './yaku';
+import {
+  detectCurrentYaku,
+  detectYaku,
+  findWinningTiles,
+  suggestPossibleYaku,
+  YakuContext,
+  YakuName,
+} from './yaku';
 import { Meld, Tile } from './types';
 
 function tiles(input: string): Tile[] {
@@ -523,5 +530,52 @@ describe('detectYaku — rule guards and possible yaku', () => {
 
     expect(result.some(yaku => yaku.name === 'riichi')).toBe(true);
     expect(result.some(yaku => yaku.name === 'pinfu')).toBe(true);
+  });
+
+  it('shows current secured yaku before the hand is complete', () => {
+    const result = detectCurrentYaku(
+      ctx('123m 456p 789s 22m', {
+        melds: [meld('pon', 'EEE')],
+      })
+    );
+
+    expect(result.some(yaku => yaku.name === 'yakuhai')).toBe(true);
+  });
+
+  it('shows current riichi as secured yaku before the hand is complete', () => {
+    const result = detectCurrentYaku(
+      ctx('123m 456m 23p 678s 55p', {
+        isRiichi: true,
+      })
+    );
+
+    expect(result.some(yaku => yaku.name === 'riichi')).toBe(true);
+  });
+
+  it('enumerates actual winning tiles in tenpai', () => {
+    const result = findWinningTiles(
+      ctx('123m 456m 23p 678s 55p')
+    );
+
+    const labels = result.map(wait => {
+      if (wait.tile.suit === 'man' || wait.tile.suit === 'pin' || wait.tile.suit === 'sou') {
+        const suffix = wait.tile.suit === 'man' ? 'm' : wait.tile.suit === 'pin' ? 'p' : 's';
+        return `${wait.tile.value}${suffix}`;
+      }
+      return String(wait.tile.value);
+    });
+
+    expect(labels).toContain('4p');
+    expect(labels).toHaveLength(1);
+  });
+
+  it('finds a ron opportunity when the opponent discard matches a winning tile', () => {
+    const result = findWinningTiles(
+      ctx('123m 456m 23p 678s 55p')
+    );
+
+    const ronWait = result.find(wait => wait.tile.suit === 'pin' && wait.tile.value === 4);
+    expect(ronWait).toBeDefined();
+    expect(ronWait?.result.han).toBeGreaterThan(0);
   });
 });

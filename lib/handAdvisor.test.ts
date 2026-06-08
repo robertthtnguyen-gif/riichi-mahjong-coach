@@ -48,11 +48,13 @@ describe('analyzeHand', () => {
     expect(result.shanten).toBe(0);
     expect(result.ukeire).toBe(8);
     expect(result.bestDiscard).toBe('E');
+    expect(result.bestSpeedDiscard).toBe('E');
+    expect(result.bestValueDiscard).toBe('E');
     expect(result.alternatives.length).toBeGreaterThan(0);
     expect(result.possibleYaku).toContain('riichi');
     expect(result.possibleYaku).toContain('pinfu');
     expect(result.targetYaku).toBe('Riichi + Pinfu');
-    expect(result.recommendation).toEqual(['Keep hand closed.', 'Do not Pon.']);
+    expect(result.recommendation[0]).toBe('Discard E for the fastest line.');
   });
 
   it('warns when an open hand has no clear yaku line', () => {
@@ -102,5 +104,32 @@ describe('analyzeHand', () => {
     });
 
     expect(result.callRecommendation).toEqual(['Pass and draw.']);
+  });
+
+  it('explains the speed versus value trade-off for the yakuhai hand', () => {
+    const result = analyzeHand({
+      hand: tiles('EEE 345m 4s 6s'),
+      melds: [meld('pon', 'RRR'), meld('pon', 'SSS')],
+      seatWind: 'east',
+      roundWind: 'south',
+      doraTiles: [],
+      isRiichi: false,
+      isTsumo: false,
+      openTanyaoEnabled: true,
+    });
+
+    expect(result.bestSpeedDiscard).toBe('E');
+    expect(['4s', '6s']).toContain(result.bestValueDiscard);
+    expect(result.bestDiscard).toBe('E');
+    expect(result.strategyRecommendations.aggressive.discard).toBe('E');
+    expect(['4s', '6s']).toContain(result.strategyRecommendations.conservative.discard);
+    expect(result.strategyRecommendations.balanced.discard).toBe('E');
+    expect(result.recommendation).toContain(
+      'Discarding E breaks the East triplet, reducing value, but improves the wait from a single pair wait to a 5s wait.'
+    );
+    expect(result.strategyRecommendations.conservative.explanation.join(' ')).toContain(
+      'keeps 3 han of value tiles'
+    );
+    expect(result.discardOptions[0]?.tile).toBe('E');
   });
 });

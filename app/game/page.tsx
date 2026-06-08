@@ -132,6 +132,7 @@ function GameTable({ initialState }: { initialState: GameState }) {
               isRiichi={state.player.isRiichi}
               drawnTile={state.drawnTile}
               phase={state.phase}
+              lastOpponentDiscard={state.lastOpponentDiscard}
             />
 
             <RecommendedAction

@@ -21,6 +21,10 @@ function formatYakuName(name: string): string {
     .join(' ');
 }
 
+function formatModeName(name: string): string {
+  return name.charAt(0).toUpperCase() + name.slice(1);
+}
+
 export function RecommendedAction({
   hand,
   melds,
@@ -80,7 +84,7 @@ export function RecommendedAction({
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div className="rounded-lg border border-gray-700 bg-gray-800/70 p-3">
-          <p className="text-[11px] uppercase tracking-wider text-gray-500">Best Discard</p>
+          <p className="text-[11px] uppercase tracking-wider text-gray-500">Balanced Discard</p>
           <p className="mt-1 text-xl font-bold text-rose-300">{analysis.bestDiscard ?? '—'}</p>
         </div>
         <div className="rounded-lg border border-gray-700 bg-gray-800/70 p-3 sm:col-span-2">
@@ -91,8 +95,23 @@ export function RecommendedAction({
         </div>
       </div>
 
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="rounded-lg border border-gray-700 bg-gray-800/70 p-3">
+          <p className="text-[11px] uppercase tracking-wider text-gray-500">Best Speed Discard</p>
+          <p className="mt-1 text-lg font-bold text-emerald-300">
+            {analysis.bestSpeedDiscard ?? '—'}
+          </p>
+        </div>
+        <div className="rounded-lg border border-gray-700 bg-gray-800/70 p-3">
+          <p className="text-[11px] uppercase tracking-wider text-gray-500">Best Value Discard</p>
+          <p className="mt-1 text-lg font-bold text-amber-200">
+            {analysis.bestValueDiscard ?? '—'}
+          </p>
+        </div>
+      </div>
+
       <div className="space-y-2 rounded-lg border border-gray-700 bg-gray-800/70 p-3">
-        <p className="text-[11px] uppercase tracking-wider text-gray-500">Recommendation</p>
+        <p className="text-[11px] uppercase tracking-wider text-gray-500">Balanced Explanation</p>
         {analysis.recommendation.length > 0 ? (
           analysis.recommendation.map(line => (
             <p key={line} className="text-sm font-medium text-white">
@@ -102,6 +121,31 @@ export function RecommendedAction({
         ) : (
           <p className="text-sm text-gray-500">No recommendation available.</p>
         )}
+      </div>
+
+      <div className="space-y-3">
+        {Object.entries(analysis.strategyRecommendations).map(([mode, recommendation]) => (
+          <div
+            key={mode}
+            className="space-y-2 rounded-lg border border-gray-700 bg-gray-800/70 p-3"
+          >
+            <p className="text-[11px] uppercase tracking-wider text-gray-500">
+              {formatModeName(mode)} Strategy
+            </p>
+            <p className="text-sm font-semibold text-white">
+              Discard: {recommendation.discard ?? '—'}
+            </p>
+            {recommendation.explanation.length > 0 ? (
+              recommendation.explanation.map(line => (
+                <p key={`${mode}-${line}`} className="text-sm text-gray-300">
+                  {line}
+                </p>
+              ))
+            ) : (
+              <p className="text-sm text-gray-500">No strategy note available.</p>
+            )}
+          </div>
+        ))}
       </div>
 
       {analysis.callRecommendation.length > 0 && (
