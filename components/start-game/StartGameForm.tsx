@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { WindSelector } from './WindSelector';
 import { BooleanToggle } from './BooleanToggle';
 import { HandInput } from './HandInput';
-import { WindValue, StartGameData } from '@/lib/types';
+import { WindValue, StartGameData, Tile } from '@/lib/types';
 import { validateHandInput, validateSingleTile } from '@/lib/tileValidator';
 
 export function StartGameForm() {

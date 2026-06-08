@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { GameConfig, Meld, Tile, WindValue } from '@/lib/types';
+import { GameConfig, Meld, Tile, WindValue, OpponentDiscardEvent } from '@/lib/types';
 import { analyzeGameHand } from '@/lib/handAdvisor';
 
 interface RecommendedActionProps {
@@ -11,6 +11,7 @@ interface RecommendedActionProps {
   config: GameConfig;
   isRiichi: boolean;
   isTsumo: boolean;
+  lastOpponentDiscard: OpponentDiscardEvent | null;
 }
 
 function formatYakuName(name: string): string {
@@ -27,10 +28,11 @@ export function RecommendedAction({
   config,
   isRiichi,
   isTsumo,
+  lastOpponentDiscard,
 }: RecommendedActionProps) {
   const analysis = useMemo(
-    () => analyzeGameHand(hand, melds, seatWind, config, isRiichi, isTsumo),
-    [hand, melds, seatWind, config, isRiichi, isTsumo]
+    () => analyzeGameHand(hand, melds, seatWind, config, isRiichi, isTsumo, lastOpponentDiscard),
+    [hand, melds, seatWind, config, isRiichi, isTsumo, lastOpponentDiscard]
   );
 
   return (
@@ -101,6 +103,17 @@ export function RecommendedAction({
           <p className="text-sm text-gray-500">No recommendation available.</p>
         )}
       </div>
+
+      {analysis.callRecommendation.length > 0 && (
+        <div className="space-y-2 rounded-lg border border-sky-500/25 bg-sky-500/10 p-3">
+          <p className="text-[11px] uppercase tracking-wider text-sky-200/80">Call Advice</p>
+          {analysis.callRecommendation.map(line => (
+            <p key={line} className="text-sm font-medium text-sky-100">
+              {line}
+            </p>
+          ))}
+        </div>
+      )}
 
       {analysis.warnings.length > 0 && (
         <div className="space-y-1 rounded-lg border border-red-500/30 bg-red-500/10 p-3">

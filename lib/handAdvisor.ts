@@ -1,4 +1,12 @@
-import { GameConfig, Meld, Tile, WindValue, DragonValue } from './types';
+import {
+  GameConfig,
+  Meld,
+  Tile,
+  WindValue,
+  DragonValue,
+  OpponentDiscardEvent,
+  OpponentPosition,
+} from './types';
 import { calcShanten } from './shanten';
 import { suggestPossibleYaku, YakuContext, YakuName } from './yaku';
 
@@ -11,6 +19,7 @@ export interface HandAdvisorContext {
   isRiichi: boolean;
   isTsumo: boolean;
   openTanyaoEnabled: boolean;
+  lastOpponentDiscard?: OpponentDiscardEvent | null;
 }
 
 export interface DiscardAnalysis {
@@ -32,6 +41,7 @@ export interface HandAnalysis {
   recommendation: string[];
   warnings: string[];
   discardOptions: DiscardAnalysis[];
+  callRecommendation: string[];
 }
 
 const SUIT_SUFFIX: Record<'man' | 'pin' | 'sou', string> = {
@@ -71,6 +81,10 @@ function baseTileLabel(tile: Tile): string {
     return tileLabel(tile);
   }
   return `${tile.value}${SUIT_SUFFIX[tile.suit]}`;
+}
+
+function sameTile(a: Tile, b: Tile): boolean {
+  return a.suit === b.suit && a.value === b.value;
 }
 
 function createTileFromLabel(label: string, id: string): Tile {
@@ -190,6 +204,135 @@ function buildRecommendation(ctx: HandAdvisorContext, possibleYaku: YakuName[]):
   return ['Hand is already open.', 'Push the fastest valid yaku line.'];
 }
 
+function positionAllowsChi(position: OpponentPosition): boolean {
+  return position === 'left';
+}
+
+function buildChiOptions(tile: Tile): Tile[][] {
+  if (tile.suit !== 'man' && tile.suit !== 'pin' && tile.suit !== 'sou') {
+    return [];
+  }
+
+  const value = tile.value as number;
+  const options: Tile[][] = [];
+  const suit = tile.suit;
+
+  const candidates = [
+    [value - 2, value - 1],
+    [value - 1, value + 1],
+    [value + 1, value + 2],
+  ];
+
+  for (const [a, b] of candidates) {
+    if (a < 1 || b > 9) {
+      continue;
+    }
+    options.push([
+      { suit, value: a, isRed: false, id: `chi-${a}${suit}` },
+      { suit, value: b, isRed: false, id: `chi-${b}${suit}` },
+    ]);
+  }
+
+  return options;
+}
+
+function canRemoveTiles(hand: Tile[], needed: Tile[]): boolean {
+  const remaining = [...hand];
+  for (const need of needed) {
+    const index = remaining.findIndex(tile => sameTile(tile, need));
+    if (index === -1) {
+      return false;
+    }
+    remaining.splice(index, 1);
+  }
+  return true;
+}
+
+function removeTiles(hand: Tile[], needed: Tile[]): Tile[] {
+  const remaining = [...hand];
+  for (const need of needed) {
+    const index = remaining.findIndex(tile => sameTile(tile, need));
+    if (index !== -1) {
+      remaining.splice(index, 1);
+    }
+  }
+  return remaining;
+}
+
+function buildCallRecommendation(ctx: HandAdvisorContext): string[] {
+  const discardEvent = ctx.lastOpponentDiscard;
+  if (!discardEvent || ctx.isRiichi) {
+    return [];
+  }
+
+  const passAnalysis = analyzeHand({ ...ctx, lastOpponentDiscard: null });
+  const passHasYakuLine = passAnalysis.possibleYaku.length > 0;
+  const lines: string[] = [];
+  const calledTile = discardEvent.tile;
+
+  const ponNeeded = [calledTile, calledTile];
+  if (canRemoveTiles(ctx.hand, ponNeeded)) {
+    const handAfterPon = removeTiles(ctx.hand, ponNeeded);
+    const ponPossibleYaku = getPossibleYaku(
+      {
+        ...ctx,
+        hand: handAfterPon,
+        melds: [...ctx.melds, { type: 'pon', tiles: [calledTile, calledTile, calledTile] }],
+      },
+      handAfterPon
+    );
+    const ponShanten = calcShanten(handAfterPon, [
+      ...ctx.melds,
+      { type: 'pon', tiles: [calledTile, calledTile, calledTile] },
+    ]).shanten;
+    if (
+      (!passHasYakuLine && ponPossibleYaku.length > 0) ||
+      ponShanten < passAnalysis.shanten ||
+      (ponShanten === passAnalysis.shanten &&
+        ponPossibleYaku.length >= passAnalysis.possibleYaku.length &&
+        ponPossibleYaku.length > 0)
+    ) {
+      lines.push(`Pon ${tileLabel(calledTile)} is viable.`);
+    }
+  }
+
+  if (positionAllowsChi(discardEvent.position)) {
+    const chiOptions = buildChiOptions(calledTile).filter(option => canRemoveTiles(ctx.hand, option));
+    if (chiOptions.length > 0) {
+      const bestChi = chiOptions.some(option => {
+        const handAfterChi = removeTiles(ctx.hand, option);
+        const chiMeld = { type: 'chi' as const, tiles: [...option, calledTile] };
+        const chiPossibleYaku = getPossibleYaku(
+          {
+            ...ctx,
+            hand: handAfterChi,
+            melds: [...ctx.melds, chiMeld],
+          },
+          handAfterChi
+        );
+        const chiShanten = calcShanten(handAfterChi, [...ctx.melds, chiMeld]).shanten;
+        return (
+          (!passHasYakuLine && chiPossibleYaku.length > 0) ||
+          chiShanten < passAnalysis.shanten ||
+          (chiShanten === passAnalysis.shanten &&
+            chiPossibleYaku.length >= passAnalysis.possibleYaku.length &&
+            chiPossibleYaku.length > 0)
+        );
+      });
+
+      if (bestChi) {
+        lines.push(`Chi ${tileLabel(calledTile)} is viable.`);
+      }
+    }
+  }
+
+  if (lines.length === 0) {
+    return ['Pass and draw.'];
+  }
+
+  return [...lines, 'Pass if the call breaks your best yaku line.'];
+}
+
 function compareDiscards(a: DiscardAnalysis, b: DiscardAnalysis): number {
   if (a.shanten !== b.shanten) {
     return a.shanten - b.shanten;
@@ -257,6 +400,7 @@ export function analyzeHand(ctx: HandAdvisorContext): HandAnalysis {
       recommendation: [],
       warnings: ['No hand to analyze.'],
       discardOptions: [],
+      callRecommendation: [],
     };
   }
 
@@ -277,6 +421,7 @@ export function analyzeHand(ctx: HandAdvisorContext): HandAnalysis {
       recommendation: buildRecommendation(ctx, possibleYaku),
       warnings,
       discardOptions: [],
+      callRecommendation: buildCallRecommendation(ctx),
     };
   }
 
@@ -301,6 +446,7 @@ export function analyzeHand(ctx: HandAdvisorContext): HandAnalysis {
     recommendation: best?.recommendation ?? [],
     warnings,
     discardOptions,
+    callRecommendation: buildCallRecommendation(ctx),
   };
 }
 
@@ -310,7 +456,8 @@ export function analyzeGameHand(
   seatWind: WindValue,
   config: GameConfig,
   isRiichi: boolean,
-  isTsumo: boolean
+  isTsumo: boolean,
+  lastOpponentDiscard: OpponentDiscardEvent | null = null
 ): HandAnalysis {
   return analyzeHand({
     hand,
@@ -321,5 +468,6 @@ export function analyzeGameHand(
     isRiichi,
     isTsumo,
     openTanyaoEnabled: config.openTanyaoEnabled,
+    lastOpponentDiscard,
   });
 }

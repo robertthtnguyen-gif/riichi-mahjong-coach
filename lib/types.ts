@@ -29,6 +29,11 @@ export interface Opponent {
   tileCount: number;
 }
 
+export interface OpponentDiscardEvent {
+  position: OpponentPosition;
+  tile: Tile;
+}
+
 export interface Player {
   seatWind: WindValue;
   hand: Tile[];
@@ -54,6 +59,7 @@ export interface GameState {
   config: GameConfig;
   phase: GamePhase;
   drawnTile: Tile | null;
+  lastOpponentDiscard: OpponentDiscardEvent | null;
   turnCount: number;
 }
 

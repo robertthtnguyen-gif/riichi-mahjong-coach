@@ -1,13 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { Tile } from '@/lib/types';
+import { OpponentDiscardEvent, Tile } from '@/lib/types';
 import { parseTileNotation } from '@/lib/tileParser';
 
 interface ActionPanelProps {
   selectedTileId: string | null;
   phase: 'draw' | 'discard';
   isRiichi: boolean;
+  lastOpponentDiscard: OpponentDiscardEvent | null;
   onDiscard: (tileId: string) => void;
   onRiichi: (tileId: string) => void;
   onChi: (meldTiles: [Tile, Tile, Tile]) => void;
@@ -17,10 +18,22 @@ interface ActionPanelProps {
 
 type ActiveInput = 'chi' | 'pon' | 'kan' | null;
 
+function tileLabel(tile: Tile): string {
+  if (tile.suit === 'wind') {
+    return { east: 'E', south: 'S', west: 'W', north: 'N' }[tile.value as string] ?? '';
+  }
+  if (tile.suit === 'dragon') {
+    return { red: 'R', green: 'G', white: 'Wh' }[tile.value as string] ?? '';
+  }
+  const suffix = tile.suit === 'man' ? 'm' : tile.suit === 'pin' ? 'p' : 's';
+  return `${tile.isRed ? '0' : tile.value}${suffix}`;
+}
+
 export function ActionPanel({
   selectedTileId,
   phase,
   isRiichi,
+  lastOpponentDiscard,
   onDiscard,
   onRiichi,
   onChi,
@@ -33,7 +46,9 @@ export function ActionPanel({
 
   const canDiscard = phase === 'discard' && selectedTileId !== null && !isRiichi;
   const canRiichi = phase === 'discard' && selectedTileId !== null && !isRiichi;
-  const canCall = !isRiichi;
+  const canPon = !isRiichi && lastOpponentDiscard !== null;
+  const canChi = !isRiichi && lastOpponentDiscard?.position === 'left';
+  const canKan = !isRiichi;
 
   function handleDiscard() {
     if (!selectedTileId) return;
@@ -114,13 +129,19 @@ export function ActionPanel({
       {isRiichi && (
         <p className="text-xs text-red-400 font-medium">In Riichi — waiting for winning tile.</p>
       )}
+      {lastOpponentDiscard && (
+        <p className="text-xs text-sky-300">
+          Current opponent discard:{' '}
+          <span className="font-mono font-semibold">{tileLabel(lastOpponentDiscard.tile)}</span>
+        </p>
+      )}
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {actionBtn('Discard', handleDiscard, canDiscard, 'primary')}
         {actionBtn('Riichi', handleRiichi, canRiichi, 'danger')}
-        {actionBtn('Chi', () => toggleInput('chi'), canCall, 'warning')}
-        {actionBtn('Pon', () => toggleInput('pon'), canCall, 'warning')}
-        {actionBtn('Kan', () => toggleInput('kan'), canCall, 'accent')}
+        {actionBtn('Chi', () => toggleInput('chi'), canChi, 'warning')}
+        {actionBtn('Pon', () => toggleInput('pon'), canPon, 'warning')}
+        {actionBtn('Kan', () => toggleInput('kan'), canKan, 'accent')}
       </div>
 
       {activeInput && (

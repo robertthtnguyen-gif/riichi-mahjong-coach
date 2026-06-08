@@ -114,6 +114,7 @@ function GameTable({ initialState }: { initialState: GameState }) {
               selectedTileId={selectedTileId}
               phase={state.phase}
               isRiichi={state.player.isRiichi}
+              lastOpponentDiscard={state.lastOpponentDiscard}
               onDiscard={handleDiscard}
               onRiichi={handleRiichi}
               onChi={chi}
@@ -140,6 +141,7 @@ function GameTable({ initialState }: { initialState: GameState }) {
               config={state.config}
               isRiichi={state.player.isRiichi}
               isTsumo={state.phase === 'discard'}
+              lastOpponentDiscard={state.lastOpponentDiscard}
             />
           </main>
 

@@ -71,4 +71,36 @@ describe('analyzeHand', () => {
     expect(result.possibleYaku).toEqual([]);
     expect(result.warnings).toContain('No clear yaku line yet.');
   });
+
+  it('recommends a pon when the tracked opponent discard improves the hand plan', () => {
+    const result = analyzeHand({
+      hand: tiles('EE 123p 456p 789s 55m'),
+      melds: [],
+      seatWind: 'east',
+      roundWind: 'south',
+      doraTiles: [],
+      isRiichi: false,
+      isTsumo: false,
+      openTanyaoEnabled: true,
+      lastOpponentDiscard: { position: 'across', tile: tiles('E')[0] },
+    });
+
+    expect(result.callRecommendation).toContain('Pon E is viable.');
+  });
+
+  it('recommends passing when the tracked discard does not create a good call', () => {
+    const result = analyzeHand({
+      hand: tiles('123m 456m 23p 678s 55p'),
+      melds: [],
+      seatWind: 'east',
+      roundWind: 'south',
+      doraTiles: [],
+      isRiichi: false,
+      isTsumo: false,
+      openTanyaoEnabled: true,
+      lastOpponentDiscard: { position: 'across', tile: tiles('9m')[0] },
+    });
+
+    expect(result.callRecommendation).toEqual(['Pass and draw.']);
+  });
 });

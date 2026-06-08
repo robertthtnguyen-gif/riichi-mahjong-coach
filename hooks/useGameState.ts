@@ -3,7 +3,14 @@
 'use client';
 
 import { useReducer } from 'react';
-import { GameState, Tile, OpponentPosition, WindValue, StartGameData } from '@/lib/types';
+import {
+  GameState,
+  Tile,
+  OpponentPosition,
+  WindValue,
+  StartGameData,
+  OpponentDiscardEvent,
+} from '@/lib/types';
 
 type GameAction =
   | { type: 'DRAW_TILE'; tile: Tile }
@@ -22,13 +29,70 @@ function removeById(hand: Tile[], id: string): Tile[] {
   return [...hand.slice(0, idx), ...hand.slice(idx + 1)];
 }
 
-function gameReducer(state: GameState, action: GameAction): GameState {
+function sameTile(a: Tile, b: Tile): boolean {
+  return a.suit === b.suit && a.value === b.value;
+}
+
+function removeMatchingTiles(hand: Tile[], tilesToRemove: Tile[]): Tile[] {
+  const remaining = [...hand];
+
+  for (const tileToRemove of tilesToRemove) {
+    const index = remaining.findIndex(tile => sameTile(tile, tileToRemove));
+    if (index === -1) {
+      return hand;
+    }
+    remaining.splice(index, 1);
+  }
+
+  return remaining;
+}
+
+function tilesConsumedFromCall(meldTiles: Tile[], calledTile: Tile | null, count: number): Tile[] {
+  const remaining = [...meldTiles];
+
+  if (calledTile) {
+    const calledIndex = remaining.findIndex(tile => sameTile(tile, calledTile));
+    if (calledIndex !== -1) {
+      remaining.splice(calledIndex, 1);
+    }
+  }
+
+  return remaining.slice(0, count);
+}
+
+function consumeLastOpponentDiscard(
+  opponents: GameState['opponents'],
+  discardEvent: OpponentDiscardEvent | null
+): GameState['opponents'] {
+  if (!discardEvent) {
+    return opponents;
+  }
+
+  return opponents.map(opponent => {
+    if (opponent.position !== discardEvent.position || opponent.discards.length === 0) {
+      return opponent;
+    }
+
+    const lastDiscard = opponent.discards[opponent.discards.length - 1];
+    if (!sameTile(lastDiscard, discardEvent.tile)) {
+      return opponent;
+    }
+
+    return {
+      ...opponent,
+      discards: opponent.discards.slice(0, -1),
+    };
+  });
+}
+
+export function gameReducer(state: GameState, action: GameAction): GameState {
   switch (action.type) {
     case 'DRAW_TILE':
       return {
         ...state,
         phase: 'discard',
         drawnTile: action.tile,
+        lastOpponentDiscard: null,
         player: {
           ...state.player,
           hand: [...state.player.hand, action.tile],
@@ -40,6 +104,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         ...state,
         phase: 'draw',
         drawnTile: null,
+        lastOpponentDiscard: null,
         turnCount: state.turnCount + 1,
         player: {
           ...state.player,
@@ -57,6 +122,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         ...state,
         phase: 'draw',
         drawnTile: null,
+        lastOpponentDiscard: null,
         turnCount: state.turnCount + 1,
         player: {
           ...state.player,
@@ -69,29 +135,46 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       };
     }
 
-    case 'CHI':
+    case 'CHI': {
+      const calledTile = state.lastOpponentDiscard?.tile ?? null;
+      const concealedTiles = tilesConsumedFromCall(action.meldTiles, calledTile, 2);
+
       return {
         ...state,
         phase: 'discard',
+        drawnTile: null,
+        lastOpponentDiscard: null,
+        opponents: consumeLastOpponentDiscard(state.opponents, state.lastOpponentDiscard),
         player: {
           ...state.player,
+          hand: removeMatchingTiles(state.player.hand, concealedTiles),
           melds: [...state.player.melds, { type: 'chi', tiles: action.meldTiles }],
         },
       };
+    }
 
-    case 'PON':
+    case 'PON': {
+      const calledTile = state.lastOpponentDiscard?.tile ?? null;
+      const concealedTiles = tilesConsumedFromCall(action.meldTiles, calledTile, 2);
+
       return {
         ...state,
         phase: 'discard',
+        drawnTile: null,
+        lastOpponentDiscard: null,
+        opponents: consumeLastOpponentDiscard(state.opponents, state.lastOpponentDiscard),
         player: {
           ...state.player,
+          hand: removeMatchingTiles(state.player.hand, concealedTiles),
           melds: [...state.player.melds, { type: 'pon', tiles: action.meldTiles }],
         },
       };
+    }
 
     case 'KAN':
       return {
         ...state,
+        lastOpponentDiscard: null,
         player: {
           ...state.player,
           melds: [...state.player.melds, { type: 'kan', tiles: action.meldTiles }],
@@ -101,6 +184,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     case 'OPPONENT_DISCARD':
       return {
         ...state,
+        lastOpponentDiscard: { position: action.position, tile: action.tile },
         opponents: state.opponents.map(o =>
           o.position === action.position
             ? {
@@ -115,6 +199,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     case 'OPPONENT_RIICHI':
       return {
         ...state,
+        lastOpponentDiscard: null,
         opponents: state.opponents.map(o =>
           o.position === action.position ? { ...o, isRiichi: true } : o
         ),
@@ -123,6 +208,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     case 'OPPONENT_MELD':
       return {
         ...state,
+        lastOpponentDiscard: null,
         opponents: state.opponents.map(o =>
           o.position === action.position
             ? {
@@ -201,6 +287,7 @@ export function buildInitialState(
     },
     phase: 'draw',
     drawnTile: null,
+    lastOpponentDiscard: null,
     turnCount: 0,
   };
 }
