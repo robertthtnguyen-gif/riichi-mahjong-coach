@@ -26,14 +26,46 @@ function makeTile(
   return { suit, value, isRed, id: `${suit}-${value}-${isRed ? 'r' : ''}${counter.n++}` };
 }
 
+function parseRepeatedHonorToken(
+  token: string,
+  counter: { n: number }
+): Tile[] | null {
+  const repeatedHonorMatchers: Array<{
+    pattern: RegExp;
+    suit: Suit;
+    value: WindValue | DragonValue;
+  }> = [
+    { pattern: /^E+$/, suit: 'wind', value: 'east' },
+    { pattern: /^S+$/, suit: 'wind', value: 'south' },
+    { pattern: /^W+$/, suit: 'wind', value: 'west' },
+    { pattern: /^N+$/, suit: 'wind', value: 'north' },
+    { pattern: /^R+$/, suit: 'dragon', value: 'red' },
+    { pattern: /^G+$/, suit: 'dragon', value: 'green' },
+    { pattern: /^(Wh)+$/, suit: 'dragon', value: 'white' },
+  ];
+
+  for (const matcher of repeatedHonorMatchers) {
+    if (!matcher.pattern.test(token)) {
+      continue;
+    }
+
+    const count = matcher.value === 'white' ? token.length / 2 : token.length;
+    return Array.from({ length: count }, () =>
+      makeTile(matcher.suit, matcher.value, false, counter)
+    );
+  }
+
+  return null;
+}
+
 /**
  * Parses Riichi Mahjong tile notation into Tile objects.
  *
  * Supported tokens:
  *   - Suited groups: "123m", "456p", "789s" (digits followed by m/p/s)
- *   - Red fives: "0m", "0p", "0s" (standalone or in a group like "0m5m")
- *   - Wind tiles: "E", "S", "W", "N"
- *   - Dragon tiles: "R", "G", "Wh"
+ *   - Red fives: "0m", "0p", "0s"
+ *   - Wind tiles: "E", "S", "W", "N" and repeated groups like "EE"
+ *   - Dragon tiles: "R", "G", "Wh" and repeated groups like "RR", "WhWh"
  *
  * Throws an Error for unrecognized tokens.
  */
@@ -53,14 +85,26 @@ export function parseTileNotation(input: string): Tile[] {
       continue;
     }
 
-    const suitMatch = token.match(/^([0-9]+)([mps])$/);
+    const repeatedHonors = parseRepeatedHonorToken(token, counter);
+    if (repeatedHonors !== null) {
+      tiles.push(...repeatedHonors);
+      continue;
+    }
+
+    const suitMatch = token.match(/^([1-9]+)([mps])$/);
     if (suitMatch) {
       const suit = SUIT_MAP[suitMatch[2]];
       for (const ch of suitMatch[1]) {
         const num = parseInt(ch, 10);
-        const isRed = num === 0;
-        tiles.push(makeTile(suit, isRed ? 5 : num, isRed, counter));
+        tiles.push(makeTile(suit, num, false, counter));
       }
+      continue;
+    }
+
+    const redFiveMatch = token.match(/^0([mps])$/);
+    if (redFiveMatch) {
+      const suit = SUIT_MAP[redFiveMatch[1]];
+      tiles.push(makeTile(suit, 5, true, counter));
       continue;
     }
 

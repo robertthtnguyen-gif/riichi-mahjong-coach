@@ -1,38 +1,31 @@
-// lib/yaku.ts
-
-import { Tile, Meld, WindValue, DragonValue } from './types';
+import { Meld, Tile, WindValue, DragonValue } from './types';
 import { calcShanten } from './shanten';
 
-// ── Types ─────────────────────────────────────────────────────────────────
-
 export type YakuName =
-  | 'riichi' | 'menzen-tsumo' | 'pinfu' | 'iipeikou'
-  | 'tanyao' | 'yakuhai' | 'toitoi' | 'chiitoitsu'
-  | 'honitsu' | 'chinitsu' | 'ittsu' | 'sanshoku-doujun'
-  | 'dora' | 'red-dora';
+  | 'riichi'
+  | 'menzen-tsumo'
+  | 'tanyao'
+  | 'pinfu'
+  | 'yakuhai'
+  | 'iipeikou'
+  | 'chiitoitsu'
+  | 'toitoi'
+  | 'honitsu'
+  | 'chinitsu'
+  | 'ittsu'
+  | 'sanshoku-doujun'
+  | 'dora'
+  | 'red-dora';
 
 export interface YakuEntry {
   name: YakuName;
   han: number;
 }
 
-export interface YakuResult {
-  /** Yaku present on a complete hand (shanten === -1). Empty otherwise. */
-  confirmed: YakuEntry[];
-  /** Yaku consistent with the current partial hand (shanten >= 0). Empty when confirmed is populated. */
-  possible: YakuEntry[];
-  /** Sum of han for confirmed yaku (0 when not complete). */
-  totalHan: number;
-  /** True when the complete hand has at least one non-dora yaku. */
-  hasYaku: boolean;
-  /** True when shanten === -1 but no non-dora yaku exists. */
-  noYakuWarning: boolean;
-}
-
-export interface MeldCheckResult {
-  hasYakuAfter: boolean;
-  /** Non-null warning string when calling would leave no achievable yaku. */
-  warning: string | null;
+export interface YakuDetectionResult {
+  yaku: YakuEntry[];
+  han: number;
+  warnings: string[];
 }
 
 export interface YakuContext {
@@ -40,16 +33,44 @@ export interface YakuContext {
   melds: Meld[];
   seatWind: WindValue;
   roundWind: WindValue;
-  /** Dora indicator tiles (actual dora = indicator + 1). */
   doraTiles: Tile[];
   isRiichi: boolean;
   isTsumo: boolean;
 }
 
-// ── Tile helpers ──────────────────────────────────────────────────────────
+export interface PossibleYakuOptions {
+  openTanyaoEnabled?: boolean;
+}
+
+const YAKU_ORDER: YakuName[] = [
+  'riichi',
+  'menzen-tsumo',
+  'tanyao',
+  'pinfu',
+  'yakuhai',
+  'iipeikou',
+  'chiitoitsu',
+  'toitoi',
+  'honitsu',
+  'chinitsu',
+  'ittsu',
+  'sanshoku-doujun',
+  'dora',
+  'red-dora',
+];
 
 const WIND_IDX: Record<WindValue, number> = { east: 0, south: 1, west: 2, north: 3 };
 const DRAGON_IDX: Record<DragonValue, number> = { red: 0, green: 1, white: 2 };
+
+interface MentsuInfo {
+  type: 'triplet' | 'sequence';
+  startIndex: number;
+}
+
+interface Decomposition {
+  mentsu: MentsuInfo[];
+  jantou: number;
+}
 
 function tileToIndex(tile: Tile): number {
   if (tile.suit === 'man') return (tile.value as number) - 1;
@@ -59,379 +80,433 @@ function tileToIndex(tile: Tile): number {
   return 31 + DRAGON_IDX[tile.value as DragonValue];
 }
 
-function isHonor(idx: number): boolean { return idx >= 27; }
-function isTerminalOrHonor(idx: number): boolean {
-  return isHonor(idx) || idx % 9 === 0 || idx % 9 === 8;
+function buildCounts(tiles: Tile[]): number[] {
+  const counts = new Array(34).fill(0);
+  for (const tile of tiles) {
+    counts[tileToIndex(tile)] += 1;
+  }
+  return counts;
 }
-function isSimple(idx: number): boolean { return !isTerminalOrHonor(idx); }
-function getSuit(idx: number): number { return isHonor(idx) ? -1 : Math.floor(idx / 9); }
 
-function isYakuhaiIndex(idx: number, seatWind: WindValue, roundWind: WindValue): boolean {
-  if (idx >= 31) return true; // dragons always yakuhai
-  if (idx >= 27) {
-    const w = idx - 27;
-    return w === WIND_IDX[seatWind] || w === WIND_IDX[roundWind];
+function isHonor(index: number): boolean {
+  return index >= 27;
+}
+
+function isTerminalOrHonor(index: number): boolean {
+  return isHonor(index) || index % 9 === 0 || index % 9 === 8;
+}
+
+function isSimple(index: number): boolean {
+  return !isTerminalOrHonor(index);
+}
+
+function getSuit(index: number): number {
+  return isHonor(index) ? -1 : Math.floor(index / 9);
+}
+
+function isYakuhaiIndex(index: number, seatWind: WindValue, roundWind: WindValue): boolean {
+  if (index >= 31) {
+    return true;
+  }
+  if (index >= 27) {
+    const windIndex = index - 27;
+    return windIndex === WIND_IDX[seatWind] || windIndex === WIND_IDX[roundWind];
   }
   return false;
 }
 
-function buildCounts(tiles: Tile[]): number[] {
-  const c = new Array(34).fill(0);
-  for (const t of tiles) c[tileToIndex(t)]++;
-  return c;
-}
-
-// ── Dora conversion ───────────────────────────────────────────────────────
-
 function doraFromIndicator(indicator: Tile): number {
-  const idx = tileToIndex(indicator);
-  if (idx >= 31) return idx === 33 ? 31 : idx + 1;       // dragon cycle R→G→W→R
-  if (idx >= 27) return idx === 30 ? 27 : idx + 1;       // wind cycle N→E
-  const base = Math.floor(idx / 9) * 9;
-  return base + (idx % 9 === 8 ? 0 : idx % 9 + 1);      // suit cycle 9→1
-}
-
-// ── Hand decomposition (complete hands only) ──────────────────────────────
-
-interface MentsuInfo {
-  type: 'triplet' | 'sequence';
-  startIndex: number; // lowest tile-index in the block
-}
-
-interface Decomposition {
-  mentsu: MentsuInfo[];
-  jantai: number; // tile index of the pair
+  const index = tileToIndex(indicator);
+  if (index >= 31) return index === 33 ? 31 : index + 1;
+  if (index >= 27) return index === 30 ? 27 : index + 1;
+  const base = Math.floor(index / 9) * 9;
+  return base + (index % 9 === 8 ? 0 : index % 9 + 1);
 }
 
 function findDecompositions(handCounts: number[], openMeldCount: number): Decomposition[] {
   const results: Decomposition[] = [];
   const counts = [...handCounts];
-  const needed = 4 - openMeldCount;
+  const neededMentsu = 4 - openMeldCount;
 
-  for (let j = 0; j < 34; j++) {
-    if (counts[j] < 2) continue;
-    counts[j] -= 2;
-    collectMentsu(counts, needed, [], results, j);
-    counts[j] += 2;
+  for (let pairIndex = 0; pairIndex < 34; pairIndex += 1) {
+    if (counts[pairIndex] < 2) {
+      continue;
+    }
+    counts[pairIndex] -= 2;
+    collectMentsu(counts, neededMentsu, [], results, pairIndex);
+    counts[pairIndex] += 2;
   }
+
   return results;
 }
 
 function collectMentsu(
   counts: number[],
-  needed: number,
+  neededMentsu: number,
   blocks: MentsuInfo[],
   results: Decomposition[],
-  jantai: number
+  pairIndex: number
 ): void {
-  if (needed === 0) {
-    if (counts.every(c => c === 0)) results.push({ mentsu: [...blocks], jantai });
+  if (neededMentsu === 0) {
+    if (counts.every(count => count === 0)) {
+      results.push({ mentsu: [...blocks], jantou: pairIndex });
+    }
     return;
   }
-  let i = 0;
-  while (i < 34 && counts[i] === 0) i++;
-  if (i >= 34) return;
 
-  // Triplet
-  if (counts[i] >= 3) {
-    counts[i] -= 3;
-    blocks.push({ type: 'triplet', startIndex: i });
-    collectMentsu(counts, needed - 1, blocks, results, jantai);
+  let index = 0;
+  while (index < 34 && counts[index] === 0) {
+    index += 1;
+  }
+  if (index >= 34) {
+    return;
+  }
+
+  if (counts[index] >= 3) {
+    counts[index] -= 3;
+    blocks.push({ type: 'triplet', startIndex: index });
+    collectMentsu(counts, neededMentsu - 1, blocks, results, pairIndex);
     blocks.pop();
-    counts[i] += 3;
+    counts[index] += 3;
   }
-  // Sequence (suited only, pos 0–6 within suit)
-  if (!isHonor(i) && i % 9 <= 6 && counts[i + 1] > 0 && counts[i + 2] > 0) {
-    counts[i]--; counts[i + 1]--; counts[i + 2]--;
-    blocks.push({ type: 'sequence', startIndex: i });
-    collectMentsu(counts, needed - 1, blocks, results, jantai);
+
+  if (!isHonor(index) && index % 9 <= 6 && counts[index + 1] > 0 && counts[index + 2] > 0) {
+    counts[index] -= 1;
+    counts[index + 1] -= 1;
+    counts[index + 2] -= 1;
+    blocks.push({ type: 'sequence', startIndex: index });
+    collectMentsu(counts, neededMentsu - 1, blocks, results, pairIndex);
     blocks.pop();
-    counts[i]++; counts[i + 1]++; counts[i + 2]++;
+    counts[index] += 1;
+    counts[index + 1] += 1;
+    counts[index + 2] += 1;
   }
 }
 
-// ── Individual yaku detectors ─────────────────────────────────────────────
-
-function chkRiichi(ctx: YakuContext): YakuEntry | null {
-  return ctx.isRiichi ? { name: 'riichi', han: 1 } : null;
+function getOpenMeldCount(melds: Meld[]): number {
+  return melds.filter(meld => meld.type !== 'closed-kan').length;
 }
 
-function chkMenzenTsumo(ctx: YakuContext, openMelds: number): YakuEntry | null {
-  return ctx.isTsumo && openMelds === 0 ? { name: 'menzen-tsumo', han: 1 } : null;
-}
+function aggregateYaku(entries: YakuEntry[]): YakuEntry[] {
+  const totals = new Map<YakuName, number>();
 
-function chkPinfu(
-  decomp: Decomposition,
-  openMelds: number,
-  seatWind: WindValue,
-  roundWind: WindValue
-): YakuEntry | null {
-  if (openMelds > 0) return null;
-  if (!decomp.mentsu.every(m => m.type === 'sequence')) return null;
-  if (isYakuhaiIndex(decomp.jantai, seatWind, roundWind)) return null;
-  // Any valid sequence (pos 0–6 in suit) allows a ryanmen wait
-  return { name: 'pinfu', han: 1 };
-}
-
-function chkIipeikou(decomp: Decomposition, openMelds: number): YakuEntry | null {
-  if (openMelds > 0) return null;
-  const seqs = decomp.mentsu.filter(m => m.type === 'sequence').map(m => m.startIndex);
-  const counts = new Map<number, number>();
-  for (const s of seqs) counts.set(s, (counts.get(s) ?? 0) + 1);
-  return [...counts.values()].some(n => n >= 2) ? { name: 'iipeikou', han: 1 } : null;
-}
-
-function chkTanyao(ctx: YakuContext): YakuEntry | null {
-  const all = [...ctx.hand, ...ctx.melds.flatMap(m => m.tiles)];
-  return all.every(t => isSimple(tileToIndex(t))) ? { name: 'tanyao', han: 1 } : null;
-}
-
-function chkYakuhaiFromDecomp(
-  decomp: Decomposition,
-  ctx: YakuContext
-): YakuEntry[] {
-  return decomp.mentsu
-    .filter(m => m.type === 'triplet' && isYakuhaiIndex(m.startIndex, ctx.seatWind, ctx.roundWind))
-    .map(() => ({ name: 'yakuhai' as YakuName, han: 1 }));
-}
-
-function chkYakuhaiFromOpenMelds(ctx: YakuContext): YakuEntry[] {
-  return ctx.melds
-    .filter(m => (m.type === 'pon' || m.type === 'kan') &&
-      isYakuhaiIndex(tileToIndex(m.tiles[0]), ctx.seatWind, ctx.roundWind))
-    .map(() => ({ name: 'yakuhai' as YakuName, han: 1 }));
-}
-
-function chkToitoi(decomp: Decomposition, ctx: YakuContext): YakuEntry | null {
-  const handOk = decomp.mentsu.every(m => m.type === 'triplet');
-  const meldsOk = ctx.melds.every(
-    m => m.type === 'pon' || m.type === 'kan' || m.type === 'closed-kan'
-  );
-  return handOk && meldsOk ? { name: 'toitoi', han: 2 } : null;
-}
-
-function chkChiitoitsu(ctx: YakuContext): YakuEntry | null {
-  if (ctx.melds.length > 0 || ctx.hand.length !== 14) return null;
-  const counts = buildCounts(ctx.hand);
-  // Exactly 7 distinct pairs (each tile appears exactly 2 times)
-  const pairs = counts.filter(c => c === 2).length;
-  return pairs === 7 ? { name: 'chiitoitsu', han: 2 } : null;
-}
-
-function chkHonitsu(ctx: YakuContext, openMelds: number): YakuEntry | null {
-  const all = [...ctx.hand, ...ctx.melds.flatMap(m => m.tiles)];
-  const suits = new Set(all.map(t => getSuit(tileToIndex(t))).filter(s => s >= 0));
-  if (suits.size !== 1) return null;
-  const hasHonors = all.some(t => isHonor(tileToIndex(t)));
-  if (!hasHonors) return null; // chinitsu, not honitsu
-  return { name: 'honitsu', han: openMelds > 0 ? 2 : 3 };
-}
-
-function chkChinitsu(ctx: YakuContext, openMelds: number): YakuEntry | null {
-  const all = [...ctx.hand, ...ctx.melds.flatMap(m => m.tiles)];
-  const suits = new Set(all.map(t => getSuit(tileToIndex(t))).filter(s => s >= 0));
-  const hasHonors = all.some(t => isHonor(tileToIndex(t)));
-  if (hasHonors || suits.size !== 1) return null;
-  return { name: 'chinitsu', han: openMelds > 0 ? 5 : 6 };
-}
-
-function chkIttsu(decomp: Decomposition, ctx: YakuContext, openMelds: number): YakuEntry | null {
-  const chiStartIndices = ctx.melds
-    .filter(m => m.type === 'chi')
-    .map(m => Math.min(...m.tiles.map(t => tileToIndex(t))));
-  const allSeqs = [
-    ...decomp.mentsu.filter(m => m.type === 'sequence').map(m => m.startIndex),
-    ...chiStartIndices,
-  ];
-  for (let suit = 0; suit < 3; suit++) {
-    const b = suit * 9;
-    if (allSeqs.includes(b) && allSeqs.includes(b + 3) && allSeqs.includes(b + 6)) {
-      return { name: 'ittsu', han: openMelds > 0 ? 1 : 2 };
-    }
+  for (const entry of entries) {
+    totals.set(entry.name, (totals.get(entry.name) ?? 0) + entry.han);
   }
-  return null;
+
+  return YAKU_ORDER
+    .filter(name => totals.has(name))
+    .map(name => ({ name, han: totals.get(name)! }));
 }
 
-function chkSanshokuDoujun(
-  decomp: Decomposition,
-  ctx: YakuContext,
-  openMelds: number
-): YakuEntry | null {
-  const chiStartIndices = ctx.melds
-    .filter(m => m.type === 'chi')
-    .map(m => Math.min(...m.tiles.map(t => tileToIndex(t))));
-  const allSeqs = [
-    ...decomp.mentsu.filter(m => m.type === 'sequence').map(m => m.startIndex),
-    ...chiStartIndices,
-  ];
-  for (let pos = 0; pos <= 6; pos++) {
-    if (allSeqs.includes(pos) && allSeqs.includes(9 + pos) && allSeqs.includes(18 + pos)) {
-      return { name: 'sanshoku-doujun', han: openMelds > 0 ? 1 : 2 };
-    }
+function hasNonDoraYaku(entries: YakuEntry[]): boolean {
+  return entries.some(entry => entry.name !== 'dora' && entry.name !== 'red-dora');
+}
+
+function createResult(entries: YakuEntry[], warnings: string[] = []): YakuDetectionResult {
+  const yaku = aggregateYaku(entries);
+  const han = yaku.reduce((total, entry) => total + entry.han, 0);
+  return { yaku, han, warnings };
+}
+
+function evaluateUniversalYaku(ctx: YakuContext, openMeldCount: number): YakuEntry[] {
+  const entries: YakuEntry[] = [];
+  const allTiles = [...ctx.hand, ...ctx.melds.flatMap(meld => meld.tiles)];
+
+  if (ctx.isRiichi) {
+    entries.push({ name: 'riichi', han: 1 });
   }
-  return null;
-}
 
-function chkDora(ctx: YakuContext): YakuEntry | null {
+  if (ctx.isTsumo && openMeldCount === 0) {
+    entries.push({ name: 'menzen-tsumo', han: 1 });
+  }
+
+  if (allTiles.every(tile => isSimple(tileToIndex(tile)))) {
+    entries.push({ name: 'tanyao', han: 1 });
+  }
+
+  const suits = new Set(allTiles.map(tile => getSuit(tileToIndex(tile))).filter(suit => suit >= 0));
+  const hasHonors = allTiles.some(tile => isHonor(tileToIndex(tile)));
+  if (suits.size === 1 && hasHonors) {
+    entries.push({ name: 'honitsu', han: openMeldCount > 0 ? 2 : 3 });
+  }
+  if (suits.size === 1 && !hasHonors) {
+    entries.push({ name: 'chinitsu', han: openMeldCount > 0 ? 5 : 6 });
+  }
+
   const doraIndices = ctx.doraTiles.map(doraFromIndicator);
-  const all = [...ctx.hand, ...ctx.melds.flatMap(m => m.tiles)];
-  let count = 0;
-  for (const tile of all) {
-    const idx = tileToIndex(tile);
-    count += doraIndices.filter(d => d === idx).length;
+  const doraCount = allTiles.reduce((count, tile) => {
+    const index = tileToIndex(tile);
+    return count + doraIndices.filter(doraIndex => doraIndex === index).length;
+  }, 0);
+  if (doraCount > 0) {
+    entries.push({ name: 'dora', han: doraCount });
   }
-  return count > 0 ? { name: 'dora', han: count } : null;
+
+  const redDoraCount = allTiles.filter(tile => tile.isRed).length;
+  if (redDoraCount > 0) {
+    entries.push({ name: 'red-dora', han: redDoraCount });
+  }
+
+  return entries;
 }
 
-function chkRedDora(ctx: YakuContext): YakuEntry | null {
-  const all = [...ctx.hand, ...ctx.melds.flatMap(m => m.tiles)];
-  const count = all.filter(t => t.isRed).length;
-  return count > 0 ? { name: 'red-dora', han: count } : null;
+function detectChiitoitsu(ctx: YakuContext): boolean {
+  if (ctx.melds.length > 0 || ctx.hand.length !== 14) {
+    return false;
+  }
+  const counts = buildCounts(ctx.hand);
+  return counts.filter(count => count === 2).length === 7;
 }
 
-// ── Possible yaku (partial hands) ────────────────────────────────────────
+function evaluateChiitoitsuYaku(ctx: YakuContext): YakuEntry[] {
+  const openMeldCount = getOpenMeldCount(ctx.melds);
+  return [{ name: 'chiitoitsu', han: 2 }, ...evaluateUniversalYaku(ctx, openMeldCount)];
+}
 
-function possibleYaku(ctx: YakuContext): YakuEntry[] {
+function evaluateStandardYaku(
+  ctx: YakuContext,
+  decomposition: Decomposition,
+  openMeldCount: number
+): YakuEntry[] {
+  const entries = evaluateUniversalYaku(ctx, openMeldCount);
+  const sequences = decomposition.mentsu.filter(mentsu => mentsu.type === 'sequence');
+  const triplets = decomposition.mentsu.filter(mentsu => mentsu.type === 'triplet');
+  const openSequences = ctx.melds
+    .filter(meld => meld.type === 'chi')
+    .map(meld => Math.min(...meld.tiles.map(tile => tileToIndex(tile))));
+
+  if (
+    openMeldCount === 0 &&
+    decomposition.mentsu.every(mentsu => mentsu.type === 'sequence') &&
+    !isYakuhaiIndex(decomposition.jantou, ctx.seatWind, ctx.roundWind)
+  ) {
+    entries.push({ name: 'pinfu', han: 1 });
+  }
+
+  if (openMeldCount === 0) {
+    const sequenceCounts = new Map<number, number>();
+    for (const sequence of sequences) {
+      sequenceCounts.set(
+        sequence.startIndex,
+        (sequenceCounts.get(sequence.startIndex) ?? 0) + 1
+      );
+    }
+    if ([...sequenceCounts.values()].some(count => count >= 2)) {
+      entries.push({ name: 'iipeikou', han: 1 });
+    }
+  }
+
+  const yakuhaiHan =
+    triplets.filter(mentsu =>
+      isYakuhaiIndex(mentsu.startIndex, ctx.seatWind, ctx.roundWind)
+    ).length +
+    ctx.melds.filter(
+      meld =>
+        (meld.type === 'pon' || meld.type === 'kan' || meld.type === 'closed-kan') &&
+        isYakuhaiIndex(tileToIndex(meld.tiles[0]), ctx.seatWind, ctx.roundWind)
+    ).length;
+  if (yakuhaiHan > 0) {
+    entries.push({ name: 'yakuhai', han: yakuhaiHan });
+  }
+
+  if (
+    decomposition.mentsu.every(mentsu => mentsu.type === 'triplet') &&
+    ctx.melds.every(
+      meld => meld.type === 'pon' || meld.type === 'kan' || meld.type === 'closed-kan'
+    )
+  ) {
+    entries.push({ name: 'toitoi', han: 2 });
+  }
+
+  const allSequenceStarts = [
+    ...sequences.map(sequence => sequence.startIndex),
+    ...openSequences,
+  ];
+
+  for (let suit = 0; suit < 3; suit += 1) {
+    const base = suit * 9;
+    if (
+      allSequenceStarts.includes(base) &&
+      allSequenceStarts.includes(base + 3) &&
+      allSequenceStarts.includes(base + 6)
+    ) {
+      entries.push({ name: 'ittsu', han: openMeldCount > 0 ? 1 : 2 });
+      break;
+    }
+  }
+
+  for (let offset = 0; offset <= 6; offset += 1) {
+    if (
+      allSequenceStarts.includes(offset) &&
+      allSequenceStarts.includes(9 + offset) &&
+      allSequenceStarts.includes(18 + offset)
+    ) {
+      entries.push({ name: 'sanshoku-doujun', han: openMeldCount > 0 ? 1 : 2 });
+      break;
+    }
+  }
+
+  return entries;
+}
+
+function compareEntryLists(a: YakuEntry[], b: YakuEntry[]): number {
+  const hanDiff = b.reduce((sum, entry) => sum + entry.han, 0) - a.reduce((sum, entry) => sum + entry.han, 0);
+  if (hanDiff !== 0) {
+    return hanDiff;
+  }
+
+  const aKey = aggregateYaku(a).map(entry => `${entry.name}:${entry.han}`).join('|');
+  const bKey = aggregateYaku(b).map(entry => `${entry.name}:${entry.han}`).join('|');
+  return aKey.localeCompare(bKey);
+}
+
+export function detectYaku(ctx: YakuContext): YakuDetectionResult {
+  const shanten = calcShanten(ctx.hand, ctx.melds).shanten;
+  if (shanten !== -1) {
+    return createResult([], ['Hand is not complete.']);
+  }
+
+  if (detectChiitoitsu(ctx)) {
+    const entries = evaluateChiitoitsuYaku(ctx);
+    const warnings = hasNonDoraYaku(entries) ? [] : ['No yaku exists for this hand.'];
+    return createResult(entries, warnings);
+  }
+
+  const openMeldCount = getOpenMeldCount(ctx.melds);
+  const decompositions = findDecompositions(buildCounts(ctx.hand), openMeldCount);
+
+  if (decompositions.length === 0) {
+    const entries = evaluateUniversalYaku(ctx, openMeldCount);
+    const warnings = hasNonDoraYaku(entries) ? [] : ['No yaku exists for this hand.'];
+    return createResult(entries, warnings);
+  }
+
+  let bestEntries: YakuEntry[] | null = null;
+  for (const decomposition of decompositions) {
+    const entries = evaluateStandardYaku(ctx, decomposition, openMeldCount);
+    if (bestEntries === null || compareEntryLists(bestEntries, entries) > 0) {
+      bestEntries = entries;
+    }
+  }
+
+  const warnings = bestEntries && hasNonDoraYaku(bestEntries)
+    ? []
+    : ['No yaku exists for this hand.'];
+  return createResult(bestEntries ?? [], warnings);
+}
+
+export const calcYaku = detectYaku;
+
+export function suggestPossibleYaku(
+  ctx: YakuContext,
+  options: PossibleYakuOptions = {}
+): YakuEntry[] {
   const possible: YakuEntry[] = [];
-  const all = [...ctx.hand, ...ctx.melds.flatMap(m => m.tiles)];
-  const openMelds = ctx.melds.filter(m => m.type !== 'closed-kan').length;
+  const allTiles = [...ctx.hand, ...ctx.melds.flatMap(meld => meld.tiles)];
+  const openMeldCount = getOpenMeldCount(ctx.melds);
+  const counts = buildCounts(ctx.hand);
+  const openTanyaoEnabled = options.openTanyaoEnabled ?? true;
 
-  if (ctx.isRiichi) possible.push({ name: 'riichi', han: 1 });
-  if (openMelds === 0) possible.push({ name: 'menzen-tsumo', han: 1 });
+  if (ctx.isRiichi || openMeldCount === 0) {
+    possible.push({ name: 'riichi', han: 1 });
+  }
 
-  // Tanyao: all tiles so far are simples
-  if (all.length > 0 && all.every(t => isSimple(tileToIndex(t)))) {
+  if (openMeldCount === 0) {
+    possible.push({ name: 'menzen-tsumo', han: 1 });
+  }
+
+  if (
+    allTiles.length > 0 &&
+    allTiles.every(tile => isSimple(tileToIndex(tile))) &&
+    (openMeldCount === 0 || openTanyaoEnabled)
+  ) {
     possible.push({ name: 'tanyao', han: 1 });
   }
 
-  // Yakuhai: >=2 of a yakuhai tile in hand, or already have a pon/kan of it
-  const hc = buildCounts(ctx.hand);
-  for (let idx = 27; idx < 34; idx++) {
-    if (!isYakuhaiIndex(idx, ctx.seatWind, ctx.roundWind)) continue;
-    const inMeld = ctx.melds.some(
-      m => (m.type === 'pon' || m.type === 'kan') && tileToIndex(m.tiles[0]) === idx
-    );
-    if (inMeld || hc[idx] >= 2) possible.push({ name: 'yakuhai', han: 1 });
-  }
-
-  // Toitoi: all existing melds are triplets/kans
   if (
-    ctx.melds.length > 0 &&
-    ctx.melds.every(m => m.type === 'pon' || m.type === 'kan' || m.type === 'closed-kan')
-  ) {
-    possible.push({ name: 'toitoi', han: 2 });
-  }
-
-  // Chiitoitsu: 4+ distinct pairs in hand, no open melds
-  if (openMelds === 0) {
-    const pairs = hc.filter(c => c >= 2).length;
-    if (pairs >= 4) possible.push({ name: 'chiitoitsu', han: 2 });
-  }
-
-  // Pinfu: closed, no triplets yet
-  if (
-    openMelds === 0 &&
-    ctx.melds.length === 0 &&
-    hc.every(c => c !== 3)
+    openMeldCount === 0 &&
+    counts.every(count => count < 3)
   ) {
     possible.push({ name: 'pinfu', han: 1 });
   }
 
-  // Honitsu / Chinitsu
-  if (all.length > 0) {
-    const suits = new Set(all.map(t => getSuit(tileToIndex(t))).filter(s => s >= 0));
-    const hasHonors = all.some(t => isHonor(tileToIndex(t)));
-    if (suits.size === 1) {
-      if (!hasHonors) possible.push({ name: 'chinitsu', han: openMelds > 0 ? 5 : 6 });
-      else possible.push({ name: 'honitsu', han: openMelds > 0 ? 2 : 3 });
+  if (openMeldCount === 0) {
+    for (let suit = 0; suit < 3; suit += 1) {
+      const base = suit * 9;
+      for (let start = 0; start <= 6; start += 1) {
+        if (
+          counts[base + start] >= 2 &&
+          counts[base + start + 1] >= 2 &&
+          counts[base + start + 2] >= 2
+        ) {
+          possible.push({ name: 'iipeikou', han: 1 });
+          suit = 3;
+          break;
+        }
+      }
     }
   }
 
-  const d = chkDora(ctx);
-  if (d) possible.push(d);
-  const r = chkRedDora(ctx);
-  if (r) possible.push(r);
-
-  return possible;
-}
-
-// ── Main API ──────────────────────────────────────────────────────────────
-
-export function calcYaku(ctx: YakuContext): YakuResult {
-  const { hand, melds, seatWind, roundWind } = ctx;
-  const shantenResult = calcShanten(hand, melds);
-  const shanten = shantenResult.shanten;
-  const openMelds = melds.filter(m => m.type !== 'closed-kan').length;
-
-  // Non-complete hand
-  if (shanten !== -1) {
-    const possible = possibleYaku(ctx);
-    return { confirmed: [], possible, totalHan: 0, hasYaku: false, noYakuWarning: false };
+  for (let index = 27; index < 34; index += 1) {
+    if (!isYakuhaiIndex(index, ctx.seatWind, ctx.roundWind)) {
+      continue;
+    }
+    const hasMeld = ctx.melds.some(
+      meld =>
+        (meld.type === 'pon' || meld.type === 'kan' || meld.type === 'closed-kan') &&
+        tileToIndex(meld.tiles[0]) === index
+    );
+    if (hasMeld || counts[index] >= 2) {
+      possible.push({ name: 'yakuhai', han: 1 });
+      break;
+    }
   }
 
-  // Complete hand — chiitoitsu first (no decomposition needed)
-  const chiitsu = chkChiitoitsu(ctx);
-  if (chiitsu) {
-    const confirmed: YakuEntry[] = [chiitsu];
-    if (ctx.isRiichi) confirmed.push({ name: 'riichi', han: 1 });
-    const d = chkDora(ctx); if (d) confirmed.push(d);
-    const r = chkRedDora(ctx); if (r) confirmed.push(r);
-    const totalHan = confirmed.reduce((s, y) => s + y.han, 0);
-    return { confirmed, possible: [], totalHan, hasYaku: true, noYakuWarning: false };
+  if (
+    ctx.melds.every(
+      meld => meld.type === 'pon' || meld.type === 'kan' || meld.type === 'closed-kan'
+    ) &&
+    counts.filter(count => count >= 2).length >= 3
+  ) {
+    possible.push({ name: 'toitoi', han: 2 });
   }
 
-  // Standard decomposition — pick decomposition yielding most han
-  const handCounts = buildCounts(hand);
-  const decomps = findDecompositions(handCounts, openMelds);
-  if (decomps.length === 0) {
-    return { confirmed: [], possible: [], totalHan: 0, hasYaku: false, noYakuWarning: true };
+  if (openMeldCount === 0 && counts.filter(count => count >= 2).length >= 4) {
+    possible.push({ name: 'chiitoitsu', han: 2 });
   }
 
-  let bestConfirmed: YakuEntry[] = [];
-  let bestHan = -1;
-
-  for (const decomp of decomps) {
-    const list: YakuEntry[] = [];
-
-    const riichi = chkRiichi(ctx); if (riichi) list.push(riichi);
-    const tsumo = chkMenzenTsumo(ctx, openMelds); if (tsumo) list.push(tsumo);
-    const pinfu = chkPinfu(decomp, openMelds, seatWind, roundWind); if (pinfu) list.push(pinfu);
-    const iipeikou = chkIipeikou(decomp, openMelds); if (iipeikou) list.push(iipeikou);
-    const tanyao = chkTanyao(ctx); if (tanyao) list.push(tanyao);
-    list.push(...chkYakuhaiFromOpenMelds(ctx));
-    list.push(...chkYakuhaiFromDecomp(decomp, ctx));
-    const toitoi = chkToitoi(decomp, ctx); if (toitoi) list.push(toitoi);
-    const honitsu = chkHonitsu(ctx, openMelds); if (honitsu) list.push(honitsu);
-    const chinitsu = chkChinitsu(ctx, openMelds); if (chinitsu) list.push(chinitsu);
-    const ittsu = chkIttsu(decomp, ctx, openMelds); if (ittsu) list.push(ittsu);
-    const sanshoku = chkSanshokuDoujun(decomp, ctx, openMelds); if (sanshoku) list.push(sanshoku);
-    const d = chkDora(ctx); if (d) list.push(d);
-    const r = chkRedDora(ctx); if (r) list.push(r);
-
-    const han = list.reduce((s, y) => s + y.han, 0);
-    if (han > bestHan) { bestHan = han; bestConfirmed = list; }
+  const suits = new Set(allTiles.map(tile => getSuit(tileToIndex(tile))).filter(suit => suit >= 0));
+  const hasHonors = allTiles.some(tile => isHonor(tileToIndex(tile)));
+  if (suits.size === 1 && allTiles.length > 0) {
+    possible.push({
+      name: hasHonors ? 'honitsu' : 'chinitsu',
+      han: hasHonors ? (openMeldCount > 0 ? 2 : 3) : openMeldCount > 0 ? 5 : 6,
+    });
   }
 
-  const hasYaku = bestConfirmed.some(y => y.name !== 'dora' && y.name !== 'red-dora');
-  return {
-    confirmed: bestConfirmed,
-    possible: [],
-    totalHan: bestHan,
-    hasYaku,
-    noYakuWarning: !hasYaku,
-  };
-}
+  for (let suit = 0; suit < 3; suit += 1) {
+    const base = suit * 9;
+    const has123 = counts[base] > 0 && counts[base + 1] > 0 && counts[base + 2] > 0;
+    const has456 = counts[base + 3] > 0 && counts[base + 4] > 0 && counts[base + 5] > 0;
+    const has789 = counts[base + 6] > 0 && counts[base + 7] > 0 && counts[base + 8] > 0;
+    if (has123 && has456 && has789) {
+      possible.push({ name: 'ittsu', han: openMeldCount > 0 ? 1 : 2 });
+      break;
+    }
+  }
 
-export function checkMeld(ctx: YakuContext, proposedMeld: Meld): MeldCheckResult {
-  const ctxAfter: YakuContext = {
-    ...ctx,
-    melds: [...ctx.melds, proposedMeld],
-    isRiichi: false, // calling always loses riichi possibility
-  };
-  const possible = possibleYaku(ctxAfter);
-  const hasYakuAfter = possible.some(y => y.name !== 'dora' && y.name !== 'red-dora');
-  const warning = hasYakuAfter
-    ? null
-    : 'No yaku would remain after this call — do not open the hand.';
-  return { hasYakuAfter, warning };
+  for (let start = 0; start <= 6; start += 1) {
+    if (counts[start] > 0 && counts[9 + start] > 0 && counts[18 + start] > 0) {
+      possible.push({ name: 'sanshoku-doujun', han: openMeldCount > 0 ? 1 : 2 });
+      break;
+    }
+  }
+
+  const doraLike = evaluateUniversalYaku(ctx, openMeldCount).filter(
+    entry => entry.name === 'dora' || entry.name === 'red-dora'
+  );
+  possible.push(...doraLike);
+
+  return aggregateYaku(possible);
 }

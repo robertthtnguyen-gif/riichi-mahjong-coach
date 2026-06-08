@@ -10,6 +10,7 @@ import { DrawTileInput } from '@/components/game/DrawTileInput';
 import { ActionPanel } from '@/components/game/ActionPanel';
 import { ShantenPanel } from '@/components/game/ShantenPanel';
 import { OpponentTracking } from '@/components/game/OpponentTracking';
+import { RecommendedAction } from '@/components/game/RecommendedAction';
 
 function GameTable({ initialState }: { initialState: GameState }) {
   const { state, drawTile, discardTile, riichi, chi, pon, kan, opponentDiscard, opponentRiichi } =
@@ -113,6 +114,15 @@ function GameTable({ initialState }: { initialState: GameState }) {
           />
 
           <ShantenPanel hand={state.player.hand} melds={state.player.melds} />
+
+          <RecommendedAction
+            hand={state.player.hand}
+            melds={state.player.melds}
+            seatWind={state.player.seatWind}
+            config={state.config}
+            isRiichi={state.player.isRiichi}
+            isTsumo={state.phase === 'discard'}
+          />
         </main>
 
         {/* Right Panel */}

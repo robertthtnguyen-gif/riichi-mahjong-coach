@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p /home/robertnguyen/riichi-mahjong-coach/docs/superpowers/plans)",
+      "Bash(npx tsc *)",
+      "Bash(npm run *)",
+      "Bash(npm install *)",
+      "Bash(npm test *)",
+      "Bash(node -e ' *)",
+      "Bash(grep -rn \"calcShanten\\\\|closed-kan\" /home/robertnguyen/riichi-mahjong-coach --include=\"*.ts\" --include=\"*.tsx\" ! -path \"*/node_modules/*\")",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git init *)",
+      "Bash(git commit *)"
+    ]
+  }
+}
