@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { WindSelector } from './WindSelector';
 import { BooleanToggle } from './BooleanToggle';
 import { HandInput } from './HandInput';
-import { WindValue, Tile, StartGameData } from '@/lib/types';
+import { WindValue, StartGameData } from '@/lib/types';
 import { validateHandInput, validateSingleTile } from '@/lib/tileValidator';
 
 export function StartGameForm() {
@@ -18,7 +18,6 @@ export function StartGameForm() {
   const [redFivesEnabled, setRedFivesEnabled] = useState(true);
   const [openTanyaoEnabled, setOpenTanyaoEnabled] = useState(true);
   const [startingHandStr, setStartingHandStr] = useState('');
-  const [_validHandTiles, setValidHandTiles] = useState<Tile[]>([]);
   const [submitError, setSubmitError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -111,7 +110,7 @@ export function StartGameForm() {
         value={startingHandStr}
         onChange={setStartingHandStr}
         redFivesEnabled={redFivesEnabled}
-        onValidTiles={setValidHandTiles}
+        onValidTiles={() => {}}
       />
 
       {submitError && (

@@ -1,6 +1,6 @@
 import { GameConfig, Meld, Tile, WindValue, DragonValue } from './types';
 import { calcShanten } from './shanten';
-import { suggestPossibleYaku, YakuContext, YakuEntry, YakuName } from './yaku';
+import { suggestPossibleYaku, YakuContext, YakuName } from './yaku';
 
 export interface HandAdvisorContext {
   hand: Tile[];

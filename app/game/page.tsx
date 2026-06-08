@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { GameState, Tile, OpponentPosition, StartGameData } from '@/lib/types';
+import { GameState, Tile, StartGameData } from '@/lib/types';
 import { buildInitialState, useGameState } from '@/hooks/useGameState';
 import { GameInfo } from '@/components/game/GameInfo';
 import { CurrentHand } from '@/components/game/CurrentHand';
@@ -11,6 +11,7 @@ import { ActionPanel } from '@/components/game/ActionPanel';
 import { ShantenPanel } from '@/components/game/ShantenPanel';
 import { OpponentTracking } from '@/components/game/OpponentTracking';
 import { RecommendedAction } from '@/components/game/RecommendedAction';
+import { YakuPanel } from '@/components/game/YakuPanel';
 
 function GameTable({ initialState }: { initialState: GameState }) {
   const { state, drawTile, discardTile, riichi, chi, pon, kan, opponentDiscard, opponentRiichi } =
@@ -111,7 +112,6 @@ function GameTable({ initialState }: { initialState: GameState }) {
           <main className="space-y-4 sm:space-y-6">
             <ActionPanel
               selectedTileId={selectedTileId}
-              hand={state.player.hand}
               phase={state.phase}
               isRiichi={state.player.isRiichi}
               onDiscard={handleDiscard}
@@ -122,6 +122,16 @@ function GameTable({ initialState }: { initialState: GameState }) {
             />
 
             <ShantenPanel hand={state.player.hand} melds={state.player.melds} />
+
+            <YakuPanel
+              hand={state.player.hand}
+              melds={state.player.melds}
+              seatWind={state.player.seatWind}
+              config={state.config}
+              isRiichi={state.player.isRiichi}
+              drawnTile={state.drawnTile}
+              phase={state.phase}
+            />
 
             <RecommendedAction
               hand={state.player.hand}
@@ -166,6 +176,8 @@ export default function GamePage() {
       const hand: Tile[] = JSON.parse(rawHand);
       const doraTiles: Tile[] = rawDora ? JSON.parse(rawDora) : [];
 
+      // Session storage is the external source of truth for restoring a saved game.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setInitialState(buildInitialState(data, hand, doraTiles));
     } catch {
       setError('Failed to load game data. Please start a new game.');

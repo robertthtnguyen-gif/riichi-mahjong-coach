@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import { validateHandInput } from '@/lib/tileValidator';
 import { Tile } from '@/lib/types';
 
@@ -12,23 +12,24 @@ interface HandInputProps {
 }
 
 export function HandInput({ value, onChange, redFivesEnabled, onValidTiles }: HandInputProps) {
-  const [errors, setErrors] = useState<string[]>([]);
-  const [tileCount, setTileCount] = useState(0);
-
-  useEffect(() => {
-    if (!value.trim()) {
-      setErrors([]);
-      setTileCount(0);
-      return;
-    }
-    const result = validateHandInput(value, redFivesEnabled);
-    setErrors(result.errors);
-    setTileCount(result.tiles.length);
-    if (result.valid) onValidTiles(result.tiles);
-  }, [value, redFivesEnabled]); // eslint-disable-line react-hooks/exhaustive-deps
+  const result = useMemo(
+    () =>
+      value.trim()
+        ? validateHandInput(value, redFivesEnabled)
+        : { valid: false, tiles: [], errors: [] },
+    [value, redFivesEnabled]
+  );
+  const errors = result.errors;
+  const tileCount = result.tiles.length;
 
   const isValid = errors.length === 0 && tileCount === 13;
   const hasInput = value.trim().length > 0;
+
+  useEffect(() => {
+    if (result.valid) {
+      onValidTiles(result.tiles);
+    }
+  }, [onValidTiles, result]);
 
   return (
     <div className="space-y-2">

@@ -6,7 +6,6 @@ import { parseTileNotation } from '@/lib/tileParser';
 
 interface ActionPanelProps {
   selectedTileId: string | null;
-  hand: Tile[];
   phase: 'draw' | 'discard';
   isRiichi: boolean;
   onDiscard: (tileId: string) => void;
@@ -20,7 +19,6 @@ type ActiveInput = 'chi' | 'pon' | 'kan' | null;
 
 export function ActionPanel({
   selectedTileId,
-  hand,
   phase,
   isRiichi,
   onDiscard,
