@@ -10,17 +10,19 @@ interface OpponentTrackingProps {
 export function OpponentTracking({ opponents, onDiscard, onRiichi }: OpponentTrackingProps) {
   return (
     <div className="space-y-3">
-      <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+      <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-400">
         Opponent Tracking
       </h2>
-      {opponents.map(opponent => (
-        <OpponentPanel
-          key={opponent.position}
-          opponent={opponent}
-          onDiscard={onDiscard}
-          onRiichi={onRiichi}
-        />
-      ))}
+      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-1">
+        {opponents.map(opponent => (
+          <OpponentPanel
+            key={opponent.position}
+            opponent={opponent}
+            onDiscard={onDiscard}
+            onRiichi={onRiichi}
+          />
+        ))}
+      </div>
     </div>
   );
 }

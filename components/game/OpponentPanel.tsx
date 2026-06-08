@@ -37,21 +37,21 @@ export function OpponentPanel({ opponent, onDiscard, onRiichi }: OpponentPanelPr
   }
 
   return (
-    <div className="bg-gray-700/50 rounded-xl p-3 space-y-3 border border-gray-600">
+    <div className="space-y-3 rounded-xl border border-gray-600 bg-gray-700/50 p-3">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm font-semibold text-white">
             {POSITION_LABELS[opponent.position]}
           </span>
-          <span className="text-xs px-1.5 py-0.5 bg-gray-600 text-gray-300 rounded font-mono">
+          <span className="rounded bg-gray-600 px-1.5 py-0.5 font-mono text-xs text-gray-300">
             {WIND_LABELS[opponent.seatWind]}
           </span>
           <span className="text-xs text-gray-400">{opponent.tileCount}T</span>
         </div>
         <div className="flex items-center gap-1.5">
           {opponent.isRiichi && (
-            <span className="text-xs font-bold px-1.5 py-0.5 bg-red-900 text-red-300 rounded border border-red-700">
+            <span className="rounded border border-red-700 bg-red-900 px-1.5 py-0.5 text-xs font-bold text-red-300">
               RIICHI
             </span>
           )}

@@ -16,7 +16,7 @@ const WIND_LABELS: Record<string, string> = {
 export function GameInfo({ player, config }: GameInfoProps) {
   return (
     <div className="space-y-4 text-sm">
-      <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Game Info</h2>
+      <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-400">Game Info</h2>
 
       <div className="grid grid-cols-2 gap-x-4 gap-y-3">
         <div>
@@ -44,7 +44,7 @@ export function GameInfo({ player, config }: GameInfoProps) {
       <div>
         <p className="text-gray-400 text-xs mb-1.5">Dora Indicator</p>
         {config.doraTiles.length > 0 ? (
-          <div className="flex gap-1.5">
+          <div className="flex flex-wrap gap-1.5">
             {config.doraTiles.map(tile => (
               <TileDisplay key={tile.id} tile={tile} size="sm" />
             ))}
@@ -60,8 +60,8 @@ export function GameInfo({ player, config }: GameInfoProps) {
           <div className="space-y-1.5">
             {player.melds.map((meld, i) => (
               <div key={i} className="flex items-center gap-1">
-                <span className="text-xs text-gray-500 uppercase w-8">{meld.type}</span>
-                <div className="flex gap-1">
+                <span className="w-8 text-xs uppercase text-gray-500">{meld.type}</span>
+                <div className="flex flex-wrap gap-1">
                   {meld.tiles.map(tile => (
                     <TileDisplay key={tile.id} tile={tile} size="xs" />
                   ))}

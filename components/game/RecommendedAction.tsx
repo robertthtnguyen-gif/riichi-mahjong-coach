@@ -34,7 +34,7 @@ export function RecommendedAction({
   );
 
   return (
-    <div className="rounded-xl border border-cyan-500/30 bg-gradient-to-br from-gray-800 to-gray-900 p-5 space-y-5">
+    <div className="space-y-4 rounded-xl border border-cyan-500/30 bg-gradient-to-br from-gray-800 to-gray-900 p-4 sm:space-y-5 sm:p-5">
       <div className="space-y-1">
         <h3 className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-300">
           Strategy Advisor
@@ -76,12 +76,12 @@ export function RecommendedAction({
         <p className="mt-1 text-sm font-semibold text-amber-100">{analysis.targetYaku}</p>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div className="rounded-lg border border-gray-700 bg-gray-800/70 p-3">
           <p className="text-[11px] uppercase tracking-wider text-gray-500">Best Discard</p>
           <p className="mt-1 text-xl font-bold text-rose-300">{analysis.bestDiscard ?? '—'}</p>
         </div>
-        <div className="col-span-2 rounded-lg border border-gray-700 bg-gray-800/70 p-3">
+        <div className="rounded-lg border border-gray-700 bg-gray-800/70 p-3 sm:col-span-2">
           <p className="text-[11px] uppercase tracking-wider text-gray-500">Alternative</p>
           <p className="mt-1 text-sm font-semibold text-white">
             {analysis.alternatives.length > 0 ? analysis.alternatives.join('  ') : '—'}

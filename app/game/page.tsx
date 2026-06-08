@@ -49,90 +49,90 @@ function GameTable({ initialState }: { initialState: GameState }) {
   return (
     <div className="min-h-screen bg-gray-900 text-white flex flex-col">
       {/* Header */}
-      <header className="bg-gray-800 border-b border-gray-700 px-6 py-3 flex items-center justify-between shrink-0">
-        <h1 className="text-lg font-bold text-white">Riichi Mahjong Coach</h1>
-        <div className="flex items-center gap-4 text-sm text-gray-400">
-          <span>Turn {state.turnCount}</span>
-          <span className="capitalize px-2 py-0.5 rounded bg-gray-700 text-gray-300 text-xs font-medium">
-            {state.phase === 'draw' ? 'Draw Phase' : 'Discard Phase'}
-          </span>
+      <header className="shrink-0 border-b border-gray-700 bg-gray-800 px-4 py-3 sm:px-6">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <h1 className="text-base font-bold text-white sm:text-lg">Riichi Mahjong Coach</h1>
+          <div className="flex flex-wrap items-center gap-2 text-xs text-gray-400 sm:gap-4 sm:text-sm">
+            <span>Turn {state.turnCount}</span>
+            <span className="rounded bg-gray-700 px-2 py-0.5 text-xs font-medium capitalize text-gray-300">
+              {state.phase === 'draw' ? 'Draw Phase' : 'Discard Phase'}
+            </span>
+          </div>
         </div>
       </header>
 
-      {/* Three-column layout */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left Panel */}
-        <aside className="w-72 shrink-0 bg-gray-800 border-r border-gray-700 overflow-y-auto p-4 space-y-6">
-          <GameInfo player={state.player} config={state.config} />
+      <div className="flex-1 overflow-y-auto">
+        <div className="mx-auto flex w-full max-w-screen-2xl flex-col gap-4 p-3 sm:gap-6 sm:p-4 lg:grid lg:grid-cols-[18rem_minmax(0,1fr)_20rem] lg:items-start lg:p-6">
+          <aside className="space-y-4 rounded-2xl border border-gray-700 bg-gray-800 p-4 sm:space-y-6 lg:sticky lg:top-6">
+            <GameInfo player={state.player} config={state.config} />
 
-          <hr className="border-gray-700" />
+            <hr className="border-gray-700" />
 
-          <CurrentHand
-            hand={state.player.hand}
-            selectedTileId={selectedTileId}
-            onSelectTile={handleSelectTile}
-            isRiichi={state.player.isRiichi}
-          />
+            <CurrentHand
+              hand={state.player.hand}
+              selectedTileId={selectedTileId}
+              onSelectTile={handleSelectTile}
+              isRiichi={state.player.isRiichi}
+            />
 
-          <DrawTileInput
-            onDraw={handleDrawTile}
-            disabled={state.phase === 'discard'}
-          />
+            <DrawTileInput
+              onDraw={handleDrawTile}
+              disabled={state.phase === 'discard'}
+            />
 
-          {state.player.discards.length > 0 && (
-            <div>
-              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
-                Your Discards ({state.player.discards.length})
-              </h3>
-              <div className="flex flex-wrap gap-1">
-                {state.player.discards.map(tile => (
-                  <div
-                    key={tile.id}
-                    className="w-7 h-9 bg-amber-50 border border-amber-200 rounded flex items-center justify-center text-xs font-bold text-gray-700"
-                    title={tileLabel(tile)}
-                  >
-                    {tileLabel(tile)}
-                  </div>
-                ))}
+            {state.player.discards.length > 0 && (
+              <div>
+                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400">
+                  Your Discards ({state.player.discards.length})
+                </h3>
+                <div className="flex flex-wrap gap-1">
+                  {state.player.discards.map(tile => (
+                    <div
+                      key={tile.id}
+                      className="flex h-9 w-7 items-center justify-center rounded border border-amber-200 bg-amber-50 text-xs font-bold text-gray-700"
+                      title={tileLabel(tile)}
+                    >
+                      {tileLabel(tile)}
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
-        </aside>
+            )}
+          </aside>
 
-        {/* Center Panel */}
-        <main className="flex-1 overflow-y-auto p-6 space-y-6">
-          <ActionPanel
-            selectedTileId={selectedTileId}
-            hand={state.player.hand}
-            phase={state.phase}
-            isRiichi={state.player.isRiichi}
-            onDiscard={handleDiscard}
-            onRiichi={handleRiichi}
-            onChi={chi}
-            onPon={pon}
-            onKan={kan}
-          />
+          <main className="space-y-4 sm:space-y-6">
+            <ActionPanel
+              selectedTileId={selectedTileId}
+              hand={state.player.hand}
+              phase={state.phase}
+              isRiichi={state.player.isRiichi}
+              onDiscard={handleDiscard}
+              onRiichi={handleRiichi}
+              onChi={chi}
+              onPon={pon}
+              onKan={kan}
+            />
 
-          <ShantenPanel hand={state.player.hand} melds={state.player.melds} />
+            <ShantenPanel hand={state.player.hand} melds={state.player.melds} />
 
-          <RecommendedAction
-            hand={state.player.hand}
-            melds={state.player.melds}
-            seatWind={state.player.seatWind}
-            config={state.config}
-            isRiichi={state.player.isRiichi}
-            isTsumo={state.phase === 'discard'}
-          />
-        </main>
+            <RecommendedAction
+              hand={state.player.hand}
+              melds={state.player.melds}
+              seatWind={state.player.seatWind}
+              config={state.config}
+              isRiichi={state.player.isRiichi}
+              isTsumo={state.phase === 'discard'}
+            />
+          </main>
 
-        {/* Right Panel */}
-        <aside className="w-80 shrink-0 bg-gray-800 border-l border-gray-700 overflow-y-auto p-4">
-          <OpponentTracking
-            opponents={state.opponents}
-            onDiscard={opponentDiscard}
-            onRiichi={opponentRiichi}
-          />
-        </aside>
+          <aside className="rounded-2xl border border-gray-700 bg-gray-800 p-4 lg:sticky lg:top-6">
+            <OpponentTracking
+              opponents={state.opponents}
+              onDiscard={opponentDiscard}
+              onRiichi={opponentRiichi}
+            />
+          </aside>
+        </div>
       </div>
     </div>
   );

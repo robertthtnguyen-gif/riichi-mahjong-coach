@@ -107,8 +107,8 @@ export function ActionPanel({
   }
 
   return (
-    <div className="space-y-3">
-      <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Actions</h2>
+    <div className="space-y-3 rounded-2xl border border-gray-700 bg-gray-800 p-4">
+      <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-400">Actions</h2>
 
       {!selectedTileId && phase === 'discard' && !isRiichi && (
         <p className="text-xs text-amber-400">Select a tile from your hand to discard.</p>
@@ -117,7 +117,7 @@ export function ActionPanel({
         <p className="text-xs text-red-400 font-medium">In Riichi — waiting for winning tile.</p>
       )}
 
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {actionBtn('Discard', handleDiscard, canDiscard, 'primary')}
         {actionBtn('Riichi', handleRiichi, canRiichi, 'danger')}
         {actionBtn('Chi', () => toggleInput('chi'), canCall, 'warning')}
@@ -126,35 +126,37 @@ export function ActionPanel({
       </div>
 
       {activeInput && (
-        <div className="mt-3 p-3 bg-gray-700 rounded-lg space-y-2 border border-gray-600">
+        <div className="mt-3 space-y-2 rounded-lg border border-gray-600 bg-gray-700 p-3">
           <label className="text-xs font-semibold text-gray-300 uppercase">
             {activeInput === 'chi' && 'Chi — enter 3 tiles (e.g. 456m)'}
             {activeInput === 'pon' && 'Pon — enter 3 tiles (e.g. 555p)'}
             {activeInput === 'kan' && 'Kan — enter 4 tiles (e.g. 5555s)'}
           </label>
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row">
             <input
               type="text"
               value={meldInput}
               onChange={e => { setMeldInput(e.target.value); setMeldError(''); }}
               onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleMeldSubmit(); } }}
               placeholder={activeInput === 'kan' ? 'e.g. 5555m' : 'e.g. 456m'}
-              className="flex-1 bg-gray-600 border border-gray-500 rounded px-3 py-1.5 text-white font-mono text-sm placeholder-gray-500 focus:outline-none focus:border-blue-400"
+              className="min-w-0 flex-1 rounded border border-gray-500 bg-gray-600 px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-blue-400 focus:outline-none font-mono"
             />
-            <button
-              type="button"
-              onClick={handleMeldSubmit}
-              className="px-3 py-1.5 bg-blue-600 text-white rounded text-sm font-semibold hover:bg-blue-700 transition-colors"
-            >
-              OK
-            </button>
-            <button
-              type="button"
-              onClick={() => toggleInput(null)}
-              className="px-3 py-1.5 bg-gray-600 text-gray-300 rounded text-sm hover:bg-gray-500 transition-colors"
-            >
-              ✕
-            </button>
+            <div className="flex gap-2 sm:shrink-0">
+              <button
+                type="button"
+                onClick={handleMeldSubmit}
+                className="flex-1 rounded bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 sm:flex-none"
+              >
+                OK
+              </button>
+              <button
+                type="button"
+                onClick={() => toggleInput(null)}
+                className="flex-1 rounded bg-gray-600 px-3 py-2 text-sm text-gray-300 transition-colors hover:bg-gray-500 sm:flex-none"
+              >
+                ✕
+              </button>
+            </div>
           </div>
           {meldError && <p className="text-xs text-red-400">{meldError}</p>}
         </div>

@@ -32,7 +32,7 @@ export function HandInput({ value, onChange, redFivesEnabled, onValidTiles }: Ha
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <label className="block text-sm font-semibold text-gray-700">Starting Hand</label>
         {hasInput && (
           <span
@@ -60,7 +60,11 @@ export function HandInput({ value, onChange, redFivesEnabled, onValidTiles }: Ha
       />
 
       <p className="text-xs text-gray-500">
-        Notation: <span className="font-mono">1m–9m &nbsp; 1p–9p &nbsp; 1s–9s &nbsp; E S W N &nbsp; R G Wh &nbsp; 0m 0p 0s</span> (red fives)
+        Notation:{' '}
+        <span className="break-words font-mono">
+          1m–9m 1p–9p 1s–9s E S W N R G Wh 0m 0p 0s
+        </span>{' '}
+        (red fives)
       </p>
 
       {errors.map((err, i) => (
