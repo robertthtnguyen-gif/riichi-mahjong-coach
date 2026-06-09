@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { AppMenu } from '@/components/app/AppMenu';
 import { GameState, Tile, StartGameData } from '@/lib/types';
 import { buildInitialState, useGameState } from '@/hooks/useGameState';
 import { GameInfo } from '@/components/game/GameInfo';
@@ -86,6 +87,16 @@ function GameTable({ initialState }: { initialState: GameState }) {
               {`${state.config.roundWind[0].toUpperCase()}${state.config.roundWind.slice(1)} ${state.turnCount + 1} | ${state.player.seatWind[0].toUpperCase()}${state.player.seatWind.slice(1)} | Shanten ${analysis.shanten} | Ukeire ${analysis.ukeire}`}
             </p>
             <div className="flex items-center gap-2">
+              <div className="hidden sm:block">
+                <AppMenu />
+              </div>
+              <button
+                type="button"
+                onClick={() => router.push('/help')}
+                className="rounded-full border border-gray-800 bg-gray-900 px-3 py-1 text-[11px] font-semibold text-gray-300 sm:hidden"
+              >
+                Help
+              </button>
               <button
                 type="button"
                 onClick={() => setFocusMode(prev => !prev)}
@@ -166,6 +177,8 @@ function GameTable({ initialState }: { initialState: GameState }) {
                     phase={state.phase}
                     lastOpponentDiscard={state.lastOpponentDiscard}
                     collapsed
+                    targetYaku={analysis.targetYaku}
+                    possibleYaku={analysis.possibleYaku}
                   />
                 </div>
               </div>
@@ -194,6 +207,8 @@ function GameTable({ initialState }: { initialState: GameState }) {
                     phase={state.phase}
                     lastOpponentDiscard={state.lastOpponentDiscard}
                     collapsed
+                    targetYaku={analysis.targetYaku}
+                    possibleYaku={analysis.possibleYaku}
                   />
                 </div>
                 <div className="rounded-[1.75rem] border border-gray-800 bg-gray-900/90 p-4">

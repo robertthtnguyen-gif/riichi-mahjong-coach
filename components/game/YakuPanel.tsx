@@ -17,7 +17,9 @@ import {
   YakuName,
 } from '@/lib/yaku';
 import { getYakuReference } from '@/lib/yakuEncyclopedia';
-import { YakuReferenceDialog } from './YakuReferenceDialog';
+import { buildYakuProgress, inferPrimaryTarget } from '@/lib/yakuProgress';
+import { YakuQuickInfo } from './YakuQuickInfo';
+import { YakuProgressPanel } from './YakuProgressPanel';
 
 interface YakuPanelProps {
   hand: Tile[];
@@ -29,10 +31,8 @@ interface YakuPanelProps {
   phase: 'draw' | 'discard';
   lastOpponentDiscard: OpponentDiscardEvent | null;
   collapsed?: boolean;
-}
-
-function formatYakuName(name: YakuName): string {
-  return getYakuReference(name).name;
+  targetYaku: string;
+  possibleYaku: YakuName[];
 }
 
 function tileLabel(tile: Tile): string {
@@ -46,39 +46,43 @@ function tileLabel(tile: Tile): string {
   return `${tile.isRed ? '0' : tile.value}${suffix}`;
 }
 
-function hanTone(entry: YakuEntry): string {
-  if (entry.yakuman) {
-    return 'border-red-500/30 bg-red-500/10 text-red-100';
-  }
-  if (entry.han >= 6) {
-    return 'border-amber-500/30 bg-amber-500/10 text-amber-100';
-  }
-  if (entry.han >= 3) {
-    return 'border-fuchsia-500/30 bg-fuchsia-500/10 text-fuchsia-100';
-  }
-  if (entry.han >= 2) {
-    return 'border-sky-500/30 bg-sky-500/10 text-sky-100';
-  }
-  return 'border-emerald-500/30 bg-emerald-500/10 text-emerald-100';
+function formatYakuName(name: YakuName): string {
+  return getYakuReference(name).name;
 }
 
-function YakuPill({
-  entry,
-  label,
-  onOpen,
+function hanLabel(entry: YakuEntry): string {
+  return entry.yakuman ? 'Yakuman' : `${entry.han} Han`;
+}
+
+function InfoLine({
+  name,
+  suffix,
+  extra,
+  onInfo,
 }: {
-  entry: YakuEntry;
-  label: string;
-  onOpen: (name: YakuName) => void;
+  name: YakuName;
+  suffix?: string;
+  extra?: string;
+  onInfo: (name: YakuName) => void;
 }) {
   return (
-    <button
-      type="button"
-      onClick={() => onOpen(entry.name)}
-      className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors hover:brightness-110 ${hanTone(entry)}`}
-    >
-      {formatYakuName(entry.name)} {label}
-    </button>
+    <div className="flex items-center justify-between gap-3 rounded-xl border border-gray-800 bg-gray-950/40 px-3 py-2">
+      <div className="min-w-0">
+        <p className="truncate text-sm font-medium text-white">
+          {formatYakuName(name)}
+          {suffix ? <span className="text-gray-400"> {suffix}</span> : null}
+        </p>
+        {extra ? <p className="text-xs text-gray-400">{extra}</p> : null}
+      </div>
+      <button
+        type="button"
+        onClick={() => onInfo(name)}
+        className="shrink-0 rounded-full border border-gray-700 bg-gray-900 px-2 py-1 text-xs font-semibold text-cyan-100"
+        aria-label={`Info for ${formatYakuName(name)}`}
+      >
+        ⓘ
+      </button>
+    </div>
   );
 }
 
@@ -92,9 +96,10 @@ export function YakuPanel({
   phase,
   lastOpponentDiscard,
   collapsed = false,
+  targetYaku,
+  possibleYaku,
 }: YakuPanelProps) {
-  const [referenceOpen, setReferenceOpen] = useState(false);
-  const [selectedYaku, setSelectedYaku] = useState<YakuName | null>(null);
+  const [infoYaku, setInfoYaku] = useState<YakuName | null>(null);
 
   const context = useMemo<YakuContext>(
     () => ({
@@ -131,114 +136,69 @@ export function YakuPanel({
       winningTiles.find(wait => tileLabel(wait.tile) === tileLabel(lastOpponentDiscard.tile)) ?? null
     );
   }, [lastOpponentDiscard, winningTiles]);
-  const confirmedTotalHan = result.yaku.reduce((sum, entry) => sum + entry.han, 0);
 
-  function openReference(name: YakuName | null = null) {
-    setSelectedYaku(name);
-    setReferenceOpen(true);
-  }
+  const progress = useMemo(
+    () =>
+      buildYakuProgress(
+        inferPrimaryTarget(targetYaku),
+        hand,
+        melds,
+        seatWind,
+        config.roundWind,
+        possibleYaku,
+        currentYaku.map(entry => entry.name)
+      ),
+    [targetYaku, hand, melds, seatWind, config.roundWind, possibleYaku, currentYaku]
+  );
 
   const body = (
     <div className="space-y-4">
       {ronOpportunity && (
-        <div className="space-y-2 rounded-xl border border-rose-400/50 bg-rose-500/15 p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-rose-200">
-            Ron Available
-          </p>
-          <p className="text-lg font-bold text-white">Win on {tileLabel(ronOpportunity.tile)}</p>
-          <p className="text-sm text-rose-100">
-            {ronOpportunity.result.isYakuman
-              ? 'Yakuman hand ready.'
-              : `${ronOpportunity.result.han} han available.`}
-          </p>
+        <div className="rounded-xl border border-rose-400/40 bg-rose-500/10 p-3">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-rose-200">Ron Available</p>
+          <p className="mt-1 text-sm font-semibold text-white">Win on {tileLabel(ronOpportunity.tile)}</p>
         </div>
       )}
 
-      {currentYaku.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-[11px] uppercase tracking-wider text-gray-500">Current Yaku</p>
-          <div className="flex flex-wrap gap-2">
-            {currentYaku.map(entry => (
-              <YakuPill
-                key={entry.name}
-                entry={entry}
-                label="(confirmed now)"
-                onOpen={openReference}
-              />
-            ))}
-          </div>
-        </div>
-      )}
+      <YakuProgressPanel progress={progress} />
 
-      {result.yaku.length > 0 ? (
-        <div className="space-y-2">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-[11px] uppercase tracking-wider text-gray-500">Confirmed Yaku</p>
-            <p className="text-xs font-semibold text-indigo-200">
-              Total: {result.isYakuman ? 'Yakuman' : `${confirmedTotalHan} Han`}
-            </p>
-          </div>
-          <div className="space-y-2">
+      <div className="space-y-2">
+        <p className="text-[11px] uppercase tracking-[0.2em] text-gray-500">Possible Yaku</p>
+        {possibleYaku.length > 0 ? (
+          possibleYaku.map(name => (
+            <InfoLine key={name} name={name} suffix="(possible)" onInfo={setInfoYaku} />
+          ))
+        ) : (
+          <p className="text-sm text-gray-500">No likely yaku line yet.</p>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        <p className="text-[11px] uppercase tracking-[0.2em] text-gray-500">Confirmed Yaku</p>
+        {result.yaku.length > 0 ? (
+          <>
             {result.yaku.map(entry => (
-              <button
+              <InfoLine
                 key={entry.name}
-                type="button"
-                onClick={() => openReference(entry.name)}
-                className={`flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left transition-colors hover:brightness-110 ${hanTone(entry)}`}
-              >
-                <span className="text-sm font-medium text-white">{formatYakuName(entry.name)}</span>
-                <span className="text-xs font-semibold">
-                  {entry.yakuman ? 'Yakuman' : `${entry.han} Han`}
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-      ) : result.possible.length > 0 ? (
-        <div className="space-y-2">
-          <p className="text-[11px] uppercase tracking-wider text-gray-500">Possible Yaku</p>
-          <div className="flex flex-wrap gap-2">
-            {result.possible.map(entry => (
-              <YakuPill
-                key={entry.name}
-                entry={entry}
-                label="(possible)"
-                onOpen={openReference}
+                name={entry.name}
+                extra={hanLabel(entry)}
+                onInfo={setInfoYaku}
               />
             ))}
-          </div>
-        </div>
-      ) : (
-        <p className="text-sm text-gray-500">No confirmed or likely yaku yet.</p>
-      )}
-
-      {winningTiles.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-[11px] uppercase tracking-wider text-gray-500">Winning Tiles</p>
-          <div className="flex flex-wrap gap-2">
-            {winningTiles.map(wait => (
-              <span
-                key={tileLabel(wait.tile)}
-                className="rounded-full border border-rose-500/30 bg-rose-500/10 px-2.5 py-1 text-xs font-medium text-rose-200"
-              >
-                {tileLabel(wait.tile)}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {result.warnings.length > 0 && (
-        <div className="space-y-1 rounded-lg border border-amber-500/25 bg-amber-500/10 p-3">
-          {result.warnings.map(warning => (
-            <p key={warning} className="text-sm text-amber-100">
-              {warning}
-            </p>
-          ))}
-        </div>
-      )}
+            <div className="rounded-xl border border-indigo-500/20 bg-indigo-500/10 px-3 py-2">
+              <p className="text-sm font-semibold text-indigo-100">
+                Total Han: {result.isYakuman ? 'Yakuman' : result.han}
+              </p>
+            </div>
+          </>
+        ) : (
+          <p className="text-sm text-gray-500">No confirmed yaku yet.</p>
+        )}
+      </div>
     </div>
   );
+
+  const quickInfoEntry = infoYaku ? getYakuReference(infoYaku) : null;
 
   return (
     <div className="rounded-xl border border-indigo-500/30 bg-gray-800 p-4">
@@ -250,32 +210,21 @@ export function YakuPanel({
           Han {result.han}
         </span>
       </div>
-      <div className="mt-3 flex justify-end">
-        <button
-          type="button"
-          onClick={() => openReference()}
-          className="rounded-full border border-indigo-500/30 bg-indigo-500/10 px-3 py-1 text-xs font-semibold text-indigo-100"
-        >
-          Yaku Reference
-        </button>
-      </div>
       {collapsed ? (
         <details className="mt-3">
           <summary className="cursor-pointer list-none rounded-lg border border-gray-700 bg-gray-900/40 px-3 py-2 text-sm font-medium text-white">
-            Show yaku details
+            Show yaku status
           </summary>
           <div className="mt-3">{body}</div>
         </details>
       ) : (
         <div className="mt-4">{body}</div>
       )}
-      {referenceOpen ? (
-        <YakuReferenceDialog
-          open={referenceOpen}
-          initialYakuId={selectedYaku}
-          onClose={() => setReferenceOpen(false)}
-        />
-      ) : null}
+      <YakuQuickInfo
+        open={infoYaku !== null}
+        entry={quickInfoEntry}
+        onClose={() => setInfoYaku(null)}
+      />
     </div>
   );
 }
