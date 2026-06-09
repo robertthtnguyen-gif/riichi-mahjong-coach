@@ -13,6 +13,11 @@ const WIND_LABELS: Record<string, string> = {
   north: 'North',
 };
 
+function formatRound(roundId: string): string {
+  const [wind, hand] = roundId.split('-');
+  return `${wind.charAt(0).toUpperCase()}${wind.slice(1)} ${hand}`;
+}
+
 export function GameInfo({ player, config }: GameInfoProps) {
   return (
     <div className="space-y-4 text-sm">
@@ -20,8 +25,8 @@ export function GameInfo({ player, config }: GameInfoProps) {
 
       <div className="grid grid-cols-2 gap-x-4 gap-y-3">
         <div>
-          <p className="text-gray-400 text-xs mb-0.5">Round Wind</p>
-          <p className="font-semibold text-white">{WIND_LABELS[config.roundWind]}</p>
+          <p className="text-gray-400 text-xs mb-0.5">Current Round</p>
+          <p className="font-semibold text-white">{formatRound(config.roundId)}</p>
         </div>
         <div>
           <p className="text-gray-400 text-xs mb-0.5">Seat Wind</p>

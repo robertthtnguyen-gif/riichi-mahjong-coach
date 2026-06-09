@@ -9,8 +9,7 @@ function tiles(input: string): Tile[] {
 
 const baseGameData: StartGameData = {
   seatWind: 'east',
-  roundWind: 'east',
-  isDealer: false,
+  roundId: 'east-1',
   doraIndicatorStr: '',
   redFivesEnabled: true,
   openTanyaoEnabled: true,

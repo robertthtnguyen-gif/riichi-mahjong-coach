@@ -4,7 +4,7 @@ import { WindValue } from '@/lib/types';
 
 interface WindSelectorProps {
   label: string;
-  value: WindValue;
+  value: WindValue | '';
   onChange: (wind: WindValue) => void;
   options: WindValue[];
 }

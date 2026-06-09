@@ -5,6 +5,7 @@ import {
   GameState,
   Tile,
   OpponentPosition,
+  RoundId,
   WindValue,
   StartGameData,
   OpponentDiscardEvent,
@@ -26,6 +27,15 @@ type GameAction =
   | { type: 'OPPONENT_MELD'; position: OpponentPosition; meldType: 'chi' | 'pon' | 'kan'; tiles: Tile[] };
 
 const WIND_ORDER: WindValue[] = ['east', 'south', 'west', 'north'];
+
+function roundWindFromId(roundId: RoundId): WindValue {
+  return roundId.startsWith('east') ? 'east' : 'south';
+}
+
+function dealerWindFromRoundId(roundId: RoundId): WindValue {
+  const handNumber = Number(roundId.split('-')[1]);
+  return WIND_ORDER[handNumber - 1];
+}
 
 function nextWind(wind: WindValue): WindValue {
   return WIND_ORDER[(WIND_ORDER.indexOf(wind) + 1) % 4];
@@ -306,7 +316,9 @@ export function buildInitialState(
   doraTiles: Tile[]
 ): GameState {
   const [leftWind, acrossWind, rightWind] = getOpponentWinds(data.seatWind);
-  const startingActor: WindValue = 'east';
+  const roundWind = roundWindFromId(data.roundId);
+  const startingActor = dealerWindFromRoundId(data.roundId);
+  const isDealer = data.seatWind === startingActor;
 
   return {
     player: {
@@ -314,7 +326,7 @@ export function buildInitialState(
       hand,
       discards: [],
       melds: [],
-      isDealer: data.isDealer,
+      isDealer,
       isRiichi: false,
     },
     opponents: [
@@ -344,7 +356,8 @@ export function buildInitialState(
       },
     ],
     config: {
-      roundWind: data.roundWind,
+      roundWind,
+      roundId: data.roundId,
       doraIndicatorStr: data.doraIndicatorStr,
       doraTiles,
       redFivesEnabled: data.redFivesEnabled,

@@ -3,6 +3,15 @@
 export type Suit = 'man' | 'pin' | 'sou' | 'wind' | 'dragon';
 export type WindValue = 'east' | 'south' | 'west' | 'north';
 export type DragonValue = 'red' | 'green' | 'white';
+export type RoundId =
+  | 'east-1'
+  | 'east-2'
+  | 'east-3'
+  | 'east-4'
+  | 'south-1'
+  | 'south-2'
+  | 'south-3'
+  | 'south-4';
 
 export interface Tile {
   suit: Suit;
@@ -46,6 +55,7 @@ export interface Player {
 
 export interface GameConfig {
   roundWind: WindValue;
+  roundId: RoundId;
   doraIndicatorStr: string;
   doraTiles: Tile[];
   redFivesEnabled: boolean;
@@ -76,8 +86,7 @@ export interface GameState {
 
 export interface StartGameData {
   seatWind: WindValue;
-  roundWind: WindValue;
-  isDealer: boolean;
+  roundId: RoundId;
   doraIndicatorStr: string;
   redFivesEnabled: boolean;
   openTanyaoEnabled: boolean;

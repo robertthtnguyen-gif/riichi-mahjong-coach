@@ -3,17 +3,17 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { WindSelector } from './WindSelector';
+import { RoundSelector } from './RoundSelector';
 import { BooleanToggle } from './BooleanToggle';
 import { HandInput } from './HandInput';
-import { WindValue, StartGameData, Tile } from '@/lib/types';
+import { RoundId, WindValue, StartGameData, Tile } from '@/lib/types';
 import { validateHandInput, validateSingleTile } from '@/lib/tileValidator';
 
 export function StartGameForm() {
   const router = useRouter();
 
-  const [seatWind, setSeatWind] = useState<WindValue>('east');
-  const [roundWind, setRoundWind] = useState<WindValue>('east');
-  const [isDealer, setIsDealer] = useState(false);
+  const [seatWind, setSeatWind] = useState<WindValue | ''>('');
+  const [roundId, setRoundId] = useState<RoundId | ''>('');
   const [doraIndicatorStr, setDoraIndicatorStr] = useState('');
   const [redFivesEnabled, setRedFivesEnabled] = useState(true);
   const [openTanyaoEnabled, setOpenTanyaoEnabled] = useState(true);
@@ -24,6 +24,11 @@ export function StartGameForm() {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitError('');
+
+    if (!seatWind || !roundId) {
+      setSubmitError('Choose your seat and the current round before starting.');
+      return;
+    }
 
     const handResult = validateHandInput(startingHandStr, redFivesEnabled);
     if (!handResult.valid) {
@@ -43,8 +48,7 @@ export function StartGameForm() {
 
     const gameData: StartGameData = {
       seatWind,
-      roundWind,
-      isDealer,
+      roundId,
       doraIndicatorStr,
       redFivesEnabled,
       openTanyaoEnabled,
@@ -67,20 +71,13 @@ export function StartGameForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-7">
       <WindSelector
-        label="Seat Wind"
+        label="My Seat"
         value={seatWind}
-        onChange={setSeatWind}
+        onChange={wind => setSeatWind(wind)}
         options={['east', 'south', 'west', 'north']}
       />
 
-      <WindSelector
-        label="Round Wind"
-        value={roundWind}
-        onChange={setRoundWind}
-        options={['east', 'south']}
-      />
-
-      <BooleanToggle label="Dealer?" value={isDealer} onChange={setIsDealer} />
+      <RoundSelector value={roundId} onChange={setRoundId} />
 
       <div className="space-y-2">
         <label className="block text-sm font-semibold text-gray-700">Dora Indicator</label>

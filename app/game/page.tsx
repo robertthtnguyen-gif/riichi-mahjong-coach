@@ -128,13 +128,18 @@ function GameTable({ initialState }: { initialState: GameState }) {
     return `${tile.isRed ? '0' : tile.value}${SUIT_SUFFIX[tile.suit]}`;
   }
 
+  function formatRound(roundId: string): string {
+    const [wind, hand] = roundId.split('-');
+    return `${wind.charAt(0).toUpperCase()}${wind.slice(1)} ${hand}`;
+  }
+
   return (
     <div className="min-h-screen bg-[#070b12] text-white">
       <header className="sticky top-0 z-20 border-b border-cyan-500/10 bg-[#07111b]/95 backdrop-blur">
         <div className="mx-auto flex max-w-screen-2xl flex-col gap-2 px-3 py-2 sm:px-4 lg:px-6">
           <div className="flex items-center justify-between gap-3">
             <p className="min-w-0 truncate text-[11px] font-semibold text-cyan-100/80 sm:text-xs">
-              {`${state.config.roundWind[0].toUpperCase()}${state.config.roundWind.slice(1)} ${state.turnCount + 1} | ${state.player.seatWind[0].toUpperCase()}${state.player.seatWind.slice(1)} | ${state.currentTurn === 'self' ? 'My turn' : `${state.currentTurn} turn`} | Shanten ${analysis.shanten} | Ukeire ${analysis.ukeire}`}
+              {`${formatRound(state.config.roundId)} | ${state.player.seatWind[0].toUpperCase()}${state.player.seatWind.slice(1)} | ${state.currentTurn === 'self' ? 'My turn' : `${state.currentTurn} turn`} | Shanten ${analysis.shanten} | Ukeire ${analysis.ukeire}`}
             </p>
             <div className="flex items-center gap-2">
               <div className="hidden sm:block">
