@@ -13,6 +13,7 @@ import {
 } from '@/lib/types';
 import { TileDisplay } from './TileDisplay';
 import { CallRecommendation } from '@/lib/callAdvisor';
+import { getFocusModeLayoutConfig } from '@/lib/focusModeLayout';
 
 interface ActionPanelProps {
   hand: Tile[];
@@ -184,7 +185,9 @@ export function ActionPanel({
   onPass,
   onOpponentDiscard,
   onOpponentRiichi,
+  focusMode = false,
 }: ActionPanelProps) {
+  const layout = getFocusModeLayoutConfig(focusMode);
   const [activeSheet, setActiveSheet] = useState<ActiveSheet>(null);
   const [activeOpponent, setActiveOpponent] = useState<OpponentPosition>('left');
   const drawTiles = useMemo(() => ALL_TILE_LABELS.map(label => makeRuntimeTile(label)), []);
@@ -239,10 +242,12 @@ export function ActionPanel({
     <>
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-gray-800 bg-gray-950/95 px-3 pb-[calc(env(safe-area-inset-bottom)+0.85rem)] pt-3 backdrop-blur">
         <div className="mx-auto max-w-3xl space-y-3">
-          <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 px-4 py-3">
+          <div className={`rounded-2xl border border-cyan-500/20 bg-cyan-500/10 px-4 ${focusMode ? 'py-4' : 'py-3'}`}>
             <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-cyan-300">Current Step</p>
-            <p className="mt-1 text-sm font-semibold text-white">{primaryActionLabel(phase)}</p>
-            <p className="mt-1 text-xs text-gray-300">
+            <p className={`mt-1 font-semibold text-white ${focusMode ? 'text-base' : 'text-sm'}`}>
+              {primaryActionLabel(phase)}
+            </p>
+            <p className={`mt-1 text-gray-300 ${focusMode ? 'text-sm' : 'text-xs'}`}>
               {currentTurn === 'self'
                 ? 'Your turn is active.'
                 : phase === 'CALL_DECISION'
@@ -273,7 +278,7 @@ export function ActionPanel({
                 type="button"
                 disabled={button.disabled}
                 onClick={button.onClick}
-                className="rounded-2xl border border-gray-800 bg-gray-900 px-2 py-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-200 disabled:bg-gray-900/70 disabled:text-gray-600"
+                className={`rounded-2xl border border-gray-800 bg-gray-900 font-semibold uppercase tracking-[0.16em] text-gray-200 disabled:bg-gray-900/70 disabled:text-gray-600 ${layout.actionButtonClass}`}
               >
                 {button.label}
               </button>

@@ -139,7 +139,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       };
 
     case 'DISCARD_TILE': {
-      const nextActor = nextWind(state.player.seatWind);
+      const nextActor = nextWind(state.currentActor);
       return {
         ...state,
         ...buildNextTurnState(state, nextActor),
@@ -158,7 +158,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     }
 
     case 'RIICHI': {
-      const nextActor = nextWind(state.player.seatWind);
+      const nextActor = nextWind(state.currentActor);
       const discarded = state.player.hand.find(t => t.id === action.tileId);
       return {
         ...state,

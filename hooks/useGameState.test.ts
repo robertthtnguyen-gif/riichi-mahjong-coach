@@ -39,6 +39,24 @@ describe('gameReducer', () => {
     expect(southSeat.player.isDealer).toBe(false);
   });
 
+  it('if I am East and discard, the next actor is right (South)', () => {
+    let state = buildInitialState(
+      { ...baseGameData, seatWind: 'east', startingHandStr: '123m 456m 789p 55s EEE' },
+      tiles('123m 456m 789p 55s EEE'),
+      []
+    );
+
+    const firstTileId = state.player.hand[0].id;
+    state = gameReducer(state, {
+      type: 'DISCARD_TILE',
+      tileId: firstTileId,
+    });
+
+    expect(state.currentActor).toBe('south');
+    expect(state.currentTurn).toBe('right');
+    expect(state.phase).toBe('OPPONENT_TURN');
+  });
+
   it('tracks the latest opponent discard and consumes it on pon', () => {
     let state = buildInitialState(baseGameData, tiles('55m 123p 456p 789s EE'), []);
     const discardTile = tiles('5m')[0];

@@ -13,7 +13,8 @@ import { RecommendedAction } from '@/components/game/RecommendedAction';
 import { YakuPanel } from '@/components/game/YakuPanel';
 import { analyzeGameHand } from '@/lib/handAdvisor';
 import { evaluateCallRecommendation } from '@/lib/callAdvisor';
-import { detectYaku } from '@/lib/yaku';
+import { getFocusModeLayoutConfig } from '@/lib/focusModeLayout';
+import { detectCurrentYaku, detectYaku } from '@/lib/yaku';
 
 function GameTable({ initialState }: { initialState: GameState }) {
   const {
@@ -33,6 +34,7 @@ function GameTable({ initialState }: { initialState: GameState }) {
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
   const [focusMode, setFocusMode] = useState(false);
   const router = useRouter();
+  const layout = useMemo(() => getFocusModeLayoutConfig(focusMode), [focusMode]);
   const analysis = useMemo(
     () =>
       analyzeGameHand(
@@ -91,6 +93,19 @@ function GameTable({ initialState }: { initialState: GameState }) {
     });
     return result.yaku.length > 0 && (result.isYakuman || result.han > 0);
   }, [state]);
+  const currentYaku = useMemo(
+    () =>
+      detectCurrentYaku({
+        hand: state.player.hand,
+        melds: state.player.melds,
+        seatWind: state.player.seatWind,
+        roundWind: state.config.roundWind,
+        doraTiles: state.config.doraTiles,
+        isRiichi: state.player.isRiichi,
+        openTanyaoEnabled: state.config.openTanyaoEnabled,
+      }),
+    [state]
+  );
 
   function handleDrawTile(tile: Tile) {
     drawTile(tile);
@@ -133,14 +148,47 @@ function GameTable({ initialState }: { initialState: GameState }) {
     return `${wind.charAt(0).toUpperCase()}${wind.slice(1)} ${hand}`;
   }
 
+  function formatPhase(phase: GameState['phase']): string {
+    return phase
+      .toLowerCase()
+      .split('_')
+      .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ');
+  }
+
+  function pushFoldStatus(): string {
+    const riichiThreat = state.opponents.some(opponent => opponent.isRiichi);
+    if (canRon || canTsumo) return 'Win now';
+    if (riichiThreat && analysis.shanten <= 1) return 'Push carefully';
+    if (riichiThreat) return 'Fold';
+    if (analysis.shanten <= 1) return 'Push';
+    return 'Neutral';
+  }
+
+  const dealerLabel = state.player.isDealer ? 'Me' : 'Opponent';
+  const headerTurn = state.currentTurn === 'self' ? 'My turn' : `${state.currentTurn} turn`;
+  const phaseLabel = formatPhase(state.phase);
+  const riskLabel = pushFoldStatus();
+
   return (
     <div className="min-h-screen bg-[#070b12] text-white">
       <header className="sticky top-0 z-20 border-b border-cyan-500/10 bg-[#07111b]/95 backdrop-blur">
         <div className="mx-auto flex max-w-screen-2xl flex-col gap-2 px-3 py-2 sm:px-4 lg:px-6">
           <div className="flex items-center justify-between gap-3">
-            <p className="min-w-0 truncate text-[11px] font-semibold text-cyan-100/80 sm:text-xs">
-              {`${formatRound(state.config.roundId)} | ${state.player.seatWind[0].toUpperCase()}${state.player.seatWind.slice(1)} | ${state.currentTurn === 'self' ? 'My turn' : `${state.currentTurn} turn`} | Shanten ${analysis.shanten} | Ukeire ${analysis.ukeire}`}
-            </p>
+            <div className="min-w-0">
+              <p
+                className={`min-w-0 truncate font-semibold text-cyan-100/85 ${
+                  focusMode ? 'text-sm sm:text-base' : 'text-[11px] sm:text-xs'
+                }`}
+              >
+                {`Turn: ${phaseLabel} | ${formatRound(state.config.roundId)} | Dealer: ${dealerLabel}`}
+              </p>
+              {!focusMode ? (
+                <p className="mt-1 min-w-0 truncate text-[11px] text-gray-400">
+                  {`${state.player.seatWind[0].toUpperCase()}${state.player.seatWind.slice(1)} | ${headerTurn} | Shanten ${analysis.shanten} | Ukeire ${analysis.ukeire}`}
+                </p>
+              ) : null}
+            </div>
             <div className="flex items-center gap-2">
               <div className="hidden sm:block">
                 <AppMenu />
@@ -173,11 +221,17 @@ function GameTable({ initialState }: { initialState: GameState }) {
             </div>
           </div>
 
-          <div className="flex items-center justify-between gap-2 rounded-xl border border-gray-800 bg-gray-900/90 px-3 py-2">
-            <p className="text-[11px] font-semibold text-rose-200">
+          <div
+            className={`flex items-center justify-between gap-2 rounded-xl border px-3 ${
+              focusMode ? 'border-cyan-400/20 bg-cyan-500/10 py-3' : 'border-gray-800 bg-gray-900/90 py-2'
+            }`}
+          >
+            <p className={`${focusMode ? 'text-sm' : 'text-[11px]'} font-semibold text-rose-200`}>
               Best discard: <span className="text-white">{analysis.bestDiscard ?? '—'}</span>
             </p>
-            <p className="truncate text-[11px] text-amber-100">{analysis.targetYaku}</p>
+            <p className={`truncate ${focusMode ? 'text-sm' : 'text-[11px]'} text-amber-100`}>
+              {focusMode ? `${analysis.targetYaku} • ${riskLabel}` : analysis.targetYaku}
+            </p>
           </div>
         </div>
       </header>
@@ -191,8 +245,10 @@ function GameTable({ initialState }: { initialState: GameState }) {
             isRiichi={state.player.isRiichi}
             phase={state.phase}
             bestDiscard={analysis.bestDiscard}
+            drawnTile={state.drawnTile}
             onDiscardSelected={handleDiscardSelected}
             compact
+            focusMode={focusMode}
           />
 
           <div className="space-y-3">
@@ -207,12 +263,17 @@ function GameTable({ initialState }: { initialState: GameState }) {
               analysis={analysis}
               compact
               focusMode={focusMode}
+              phaseLabel={phaseLabel}
+              turnLabel={headerTurn}
+              pushFoldStatus={riskLabel}
+              callRecommendation={callRecommendation}
+              confirmedYaku={currentYaku}
             />
 
-            {!focusMode && (
+            {layout.showStudyPanels && (
               <div className="hidden gap-3 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
                 <div className="rounded-[1.5rem] border border-gray-800 bg-gray-900/90 p-4">
-                  <details>
+                  <details open>
                     <summary className="cursor-pointer list-none text-sm font-medium text-white">
                       Game info
                     </summary>
@@ -231,7 +292,7 @@ function GameTable({ initialState }: { initialState: GameState }) {
                     drawnTile={state.drawnTile}
                     phase={state.phase}
                     lastOpponentDiscard={state.lastOpponentDiscard}
-                    collapsed
+                    collapsed={false}
                     targetYaku={analysis.targetYaku}
                     possibleYaku={analysis.possibleYaku}
                   />
@@ -239,10 +300,10 @@ function GameTable({ initialState }: { initialState: GameState }) {
               </div>
             )}
 
-            {!focusMode && (
+            {layout.showStudyPanels && (
               <div className="space-y-3 lg:hidden">
                 <div className="rounded-[1.5rem] border border-gray-800 bg-gray-900/90 p-4">
-                  <details>
+                  <details open>
                     <summary className="cursor-pointer list-none text-sm font-medium text-white">
                       Game info
                     </summary>
@@ -261,7 +322,7 @@ function GameTable({ initialState }: { initialState: GameState }) {
                     drawnTile={state.drawnTile}
                     phase={state.phase}
                     lastOpponentDiscard={state.lastOpponentDiscard}
-                    collapsed
+                    collapsed={false}
                     targetYaku={analysis.targetYaku}
                     possibleYaku={analysis.possibleYaku}
                   />
@@ -271,15 +332,15 @@ function GameTable({ initialState }: { initialState: GameState }) {
                     opponents={state.opponents}
                     onDiscard={opponentDiscard}
                     onRiichi={opponentRiichi}
-                    collapsed
+                    collapsed={false}
                   />
                 </div>
               </div>
             )}
 
-            {!focusMode && state.player.discards.length > 0 && (
+            {layout.showOpponentHistory && state.player.discards.length > 0 && (
               <div className="rounded-[1.5rem] border border-gray-800 bg-gray-900/90 p-4">
-                <details>
+                <details open>
                   <summary className="cursor-pointer list-none text-sm font-medium text-white">
                     Your discards
                   </summary>
@@ -300,13 +361,13 @@ function GameTable({ initialState }: { initialState: GameState }) {
           </div>
         </section>
 
-        <aside className={`hidden flex-col gap-4 lg:flex ${focusMode ? 'lg:hidden' : ''}`}>
+        <aside className={`hidden flex-col gap-4 lg:flex ${layout.showStudyPanels ? '' : 'lg:hidden'}`}>
           <div className="rounded-[1.75rem] border border-gray-800 bg-gray-900/90 p-4 lg:sticky lg:top-[12rem]">
             <OpponentTracking
               opponents={state.opponents}
               onDiscard={opponentDiscard}
               onRiichi={opponentRiichi}
-              collapsed
+              collapsed={false}
             />
           </div>
         </aside>
@@ -334,6 +395,7 @@ function GameTable({ initialState }: { initialState: GameState }) {
         onPass={passCall}
         onOpponentDiscard={opponentDiscard}
         onOpponentRiichi={opponentRiichi}
+        focusMode={focusMode}
       />
     </div>
   );
