@@ -65,4 +65,21 @@ describe('evaluateCallRecommendation', () => {
     expect(result.action).toBe('RON');
     expect(result.confidence).toBe('HIGH');
   });
+
+  it('passes when pon only preserves dora and breaks a closed riichi/pinfu line', () => {
+    const result = evaluateCallRecommendation({
+      hand: tiles('1m 2m 3m 4m 5m 6m 3s 4s 7s 9s N N 9s'),
+      melds: [],
+      seatWind: 'east',
+      roundWind: 'south',
+      doraTiles: tiles('9s'),
+      openTanyaoEnabled: true,
+      isRiichi: false,
+      lastOpponentDiscard: { position: 'across', tile: tiles('9s')[0], actor: 'west' },
+    });
+
+    expect(result.action).toBe('PASS');
+    expect(result.callType).toBeUndefined();
+    expect(result.warning).toContain('Calling opens your hand and loses Riichi/Pinfu. Dora alone is not a yaku.');
+  });
 });

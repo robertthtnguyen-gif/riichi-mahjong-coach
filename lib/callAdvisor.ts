@@ -21,6 +21,18 @@ interface CallAdvisorContext {
   lastOpponentDiscard: OpponentDiscardEvent | null;
 }
 
+const BONUS_ONLY_YAKU = new Set(['dora', 'red-dora', 'ura-dora', 'kan-dora', 'kan-ura-dora']);
+const CLOSED_ONLY_YAKU = new Set(['riichi', 'pinfu', 'iipeikou', 'menzen-tsumo']);
+const TERMINAL_CALL_SUPPORT_YAKU = new Set([
+  'yakuhai',
+  'toitoi',
+  'honroutou',
+  'chanta',
+  'junchan',
+  'honitsu',
+  'chinitsu',
+]);
+
 function sameTile(a: Tile, b: Tile): boolean {
   return a.suit === b.suit && a.value === b.value;
 }
@@ -76,7 +88,42 @@ function buildChiOptions(hand: Tile[], calledTile: Tile | null): [Tile, Tile, Ti
 }
 
 function hasFragileClosedYaku(possible: string[]): boolean {
-  return possible.includes('riichi') || possible.includes('pinfu') || possible.includes('iipeikou');
+  return possible.some(name => CLOSED_ONLY_YAKU.has(name));
+}
+
+function realYakuOnly(names: string[]): string[] {
+  return names.filter(name => !BONUS_ONLY_YAKU.has(name));
+}
+
+function isTerminalOrHonor(tile: Tile): boolean {
+  if (tile.suit === 'wind' || tile.suit === 'dragon') {
+    return true;
+  }
+
+  return tile.value === 1 || tile.value === 9;
+}
+
+function supportsTerminalCall(yaku: string[]): boolean {
+  return yaku.some(name => TERMINAL_CALL_SUPPORT_YAKU.has(name));
+}
+
+function getPossibleRealYaku(ctx: CallAdvisorContext, hand: Tile[], melds: Meld[]): string[] {
+  return realYakuOnly(
+    suggestPossibleYaku(toYakuContext(ctx, hand, melds), {
+      openTanyaoEnabled: ctx.openTanyaoEnabled,
+    }).map(entry => entry.name)
+  );
+}
+
+function buildClosedValueWarning(kind: 'chi' | 'pon' | 'kan'): string {
+  const action = kind === 'chi' ? 'Calling chi' : kind === 'pon' ? 'Calling pon' : 'Calling kan';
+  return `${action} opens your hand and loses Riichi/Pinfu. Dora alone is not a yaku.`;
+}
+
+function confidenceFromShanten(delta: number): CallRecommendation['confidence'] {
+  if (delta < 0) return 'HIGH';
+  if (delta === 0) return 'MEDIUM';
+  return 'LOW';
 }
 
 export function evaluateCallRecommendation(ctx: CallAdvisorContext): CallRecommendation {
@@ -105,9 +152,7 @@ export function evaluateCallRecommendation(ctx: CallAdvisorContext): CallRecomme
   }
 
   const baselineShanten = calcShanten(ctx.hand, ctx.melds).shanten;
-  const baselinePossible = suggestPossibleYaku(toYakuContext(ctx, ctx.hand, ctx.melds), {
-    openTanyaoEnabled: ctx.openTanyaoEnabled,
-  }).map(entry => entry.name);
+  const baselinePossible = getPossibleRealYaku(ctx, ctx.hand, ctx.melds);
 
   const candidates: CallRecommendation[] = [];
 
@@ -116,20 +161,21 @@ export function evaluateCallRecommendation(ctx: CallAdvisorContext): CallRecomme
     const handAfterPon = removeTiles(ctx.hand, ponNeeded);
     const meldsAfterPon = [...ctx.melds, { type: 'pon' as const, tiles: [calledTile, calledTile, calledTile] }];
     const shanten = calcShanten(handAfterPon, meldsAfterPon).shanten;
-    const yaku = suggestPossibleYaku(toYakuContext(ctx, handAfterPon, meldsAfterPon), {
-      openTanyaoEnabled: ctx.openTanyaoEnabled,
-    }).map(entry => entry.name);
-    const reason = [`Pon keeps a ${yaku[0] ?? 'valid'} yaku path.`, `Shanten ${baselineShanten} → ${shanten}.`];
+    const yaku = getPossibleRealYaku(ctx, handAfterPon, meldsAfterPon);
     const warning: string[] = [];
     if (hasFragileClosedYaku(baselinePossible)) {
-      warning.push('Calling pon breaks closed-hand value like riichi, pinfu, or iipeikou.');
+      warning.push(buildClosedValueWarning('pon'));
     }
-    if (shanten < baselineShanten || yaku.length > 0) {
+    const terminalPenalty = isTerminalOrHonor(calledTile) && !supportsTerminalCall(yaku);
+    if (terminalPenalty) {
+      warning.push('Terminal pon usually needs Yakuhai, Toitoi, Honroutou, Chanta, Junchan, Honitsu, or Chinitsu support.');
+    }
+    if ((shanten < baselineShanten || yaku.length > 0) && yaku.length > 0 && !terminalPenalty) {
       candidates.push({
         action: 'CALL',
         callType: 'PON',
-        confidence: shanten < baselineShanten ? 'HIGH' : 'MEDIUM',
-        reason,
+        confidence: confidenceFromShanten(shanten - baselineShanten),
+        reason: [`Pon keeps ${yaku[0]} as a real yaku path.`, `Shanten ${baselineShanten} → ${shanten}.`],
         warning,
       });
     }
@@ -140,19 +186,17 @@ export function evaluateCallRecommendation(ctx: CallAdvisorContext): CallRecomme
       const handAfterChi = removeTiles(ctx.hand, option.slice(0, 2));
       const meldsAfterChi = [...ctx.melds, { type: 'chi' as const, tiles: option }];
       const shanten = calcShanten(handAfterChi, meldsAfterChi).shanten;
-      const yaku = suggestPossibleYaku(toYakuContext(ctx, handAfterChi, meldsAfterChi), {
-        openTanyaoEnabled: ctx.openTanyaoEnabled,
-      }).map(entry => entry.name);
+      const yaku = getPossibleRealYaku(ctx, handAfterChi, meldsAfterChi);
       const warning: string[] = [];
       if (hasFragileClosedYaku(baselinePossible)) {
-        warning.push('Calling chi breaks closed-hand value like riichi, pinfu, or iipeikou.');
+        warning.push(buildClosedValueWarning('chi'));
       }
-      if (shanten < baselineShanten || yaku.length > 0) {
+      if ((shanten < baselineShanten || yaku.length > 0) && yaku.length > 0) {
         candidates.push({
           action: 'CALL',
           callType: 'CHI',
-          confidence: shanten < baselineShanten ? 'MEDIUM' : 'LOW',
-          reason: [`Chi keeps ${yaku[0] ?? 'a yaku route'} available.`, `Shanten ${baselineShanten} → ${shanten}.`],
+          confidence: confidenceFromShanten(shanten - baselineShanten),
+          reason: [`Chi keeps ${yaku[0]} as a real yaku path.`, `Shanten ${baselineShanten} → ${shanten}.`],
           warning,
         });
       }
@@ -161,13 +205,27 @@ export function evaluateCallRecommendation(ctx: CallAdvisorContext): CallRecomme
 
   const kanNeeded = [calledTile, calledTile, calledTile];
   if (canRemoveTiles(ctx.hand, kanNeeded)) {
-    candidates.push({
-      action: 'CALL',
-      callType: 'KAN',
-      confidence: 'LOW',
-      reason: ['Kan is available from the discard.', 'Extra dora may increase value.'],
-      warning: ['Kan can expose extra dora and increase risk.'],
-    });
+    const handAfterKan = removeTiles(ctx.hand, kanNeeded);
+    const meldsAfterKan = [...ctx.melds, { type: 'kan' as const, tiles: [calledTile, calledTile, calledTile, calledTile] }];
+    const shanten = calcShanten(handAfterKan, meldsAfterKan).shanten;
+    const yaku = getPossibleRealYaku(ctx, handAfterKan, meldsAfterKan);
+    const warning = ['Kan can expose extra dora and increase risk.'];
+    if (hasFragileClosedYaku(baselinePossible)) {
+      warning.push(buildClosedValueWarning('kan'));
+    }
+    const terminalPenalty = isTerminalOrHonor(calledTile) && !supportsTerminalCall(yaku);
+    if (terminalPenalty) {
+      warning.push('Terminal kan usually needs Yakuhai, Toitoi, Honroutou, Chanta, Junchan, Honitsu, or Chinitsu support.');
+    }
+    if ((shanten < baselineShanten || yaku.length > 0) && yaku.length > 0 && !terminalPenalty) {
+      candidates.push({
+        action: 'CALL',
+        callType: 'KAN',
+        confidence: confidenceFromShanten(shanten - baselineShanten),
+        reason: [`Kan keeps ${yaku[0]} as a real yaku path.`, `Shanten ${baselineShanten} → ${shanten}.`],
+        warning,
+      });
+    }
   }
 
   if (candidates.length === 0) {
@@ -176,7 +234,7 @@ export function evaluateCallRecommendation(ctx: CallAdvisorContext): CallRecomme
       confidence: 'MEDIUM',
       reason: ['No call improves the hand enough or preserves a clear yaku line.'],
       warning: hasFragileClosedYaku(baselinePossible)
-        ? ['Passing keeps closed-hand value like riichi or pinfu intact.']
+        ? ['Calling opens your hand and loses Riichi/Pinfu. Dora alone is not a yaku.']
         : [],
     };
   }
