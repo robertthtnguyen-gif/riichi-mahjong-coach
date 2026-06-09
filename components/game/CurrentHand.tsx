@@ -8,17 +8,46 @@ interface CurrentHandProps {
   selectedTileId: string | null;
   onSelectTile: (id: string) => void;
   isRiichi: boolean;
+  phase: 'draw' | 'discard';
+  bestDiscard?: string | null;
+  onDiscardSelected?: () => void;
 }
 
-export function CurrentHand({ hand, selectedTileId, onSelectTile, isRiichi }: CurrentHandProps) {
+function tileLabel(tile: Tile): string {
+  if (tile.suit === 'wind') {
+    return { east: 'E', south: 'S', west: 'W', north: 'N' }[tile.value as string] ?? '';
+  }
+  if (tile.suit === 'dragon') {
+    return { red: 'R', green: 'G', white: 'Wh' }[tile.value as string] ?? '';
+  }
+  const suffix = tile.suit === 'man' ? 'm' : tile.suit === 'pin' ? 'p' : 's';
+  return `${tile.isRed ? '0' : tile.value}${suffix}`;
+}
+
+export function CurrentHand({
+  hand,
+  selectedTileId,
+  onSelectTile,
+  isRiichi,
+  phase,
+  bestDiscard = null,
+  onDiscardSelected,
+}: CurrentHandProps) {
   return (
-    <div className="space-y-3">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-300">
-          Current Hand
-        </h3>
+    <div className="space-y-3 rounded-[1.5rem] border border-gray-800 bg-gray-900/90 p-4 shadow-[0_12px_30px_rgba(0,0,0,0.24)]">
+      <div className="flex items-start justify-between gap-3">
+        <div className="space-y-1">
+          <h3 className="text-xs font-semibold uppercase tracking-[0.22em] text-gray-400">
+            Current Hand
+          </h3>
+          <p className="text-sm font-medium text-white">{hand.length} tiles ready</p>
+        </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-400">{hand.length} tiles</span>
+          {bestDiscard ? (
+            <span className="rounded-full border border-rose-500/40 bg-rose-500/10 px-2.5 py-1 text-xs font-semibold text-rose-200">
+              Best discard: {bestDiscard}
+            </span>
+          ) : null}
           {isRiichi && (
             <span className="rounded-full border border-red-700 bg-red-900 px-2 py-0.5 text-xs font-bold text-red-300">
               RIICHI
@@ -30,22 +59,38 @@ export function CurrentHand({ hand, selectedTileId, onSelectTile, isRiichi }: Cu
       {hand.length === 0 ? (
         <p className="text-sm text-gray-500 italic">No tiles in hand.</p>
       ) : (
-        <div className="flex flex-wrap gap-1 sm:gap-1.5">
+        <div className="flex flex-wrap gap-1.5">
           {hand.map(tile => (
             <TileDisplay
               key={tile.id}
               tile={tile}
               size="sm"
-              selected={selectedTileId === tile.id}
+              selected={selectedTileId === tile.id || tileLabel(tile) === bestDiscard}
               onClick={isRiichi ? undefined : () => onSelectTile(tile.id)}
             />
           ))}
         </div>
       )}
 
-      {!isRiichi && hand.length > 0 && (
-        <p className="text-xs text-gray-500">Click a tile to select it for discarding.</p>
-      )}
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-xs text-gray-500">
+          {isRiichi
+            ? 'Hand is locked in riichi.'
+            : phase === 'discard'
+            ? 'Tap a tile, then discard it.'
+            : 'Use Draw to add the current tile first.'}
+        </p>
+        {!isRiichi && phase === 'discard' && onDiscardSelected ? (
+          <button
+            type="button"
+            onClick={onDiscardSelected}
+            disabled={!selectedTileId}
+            className="rounded-full bg-rose-500 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-rose-400 disabled:cursor-not-allowed disabled:bg-gray-700 disabled:text-gray-500"
+          >
+            Discard Selected
+          </button>
+        ) : null}
+      </div>
     </div>
   );
 }

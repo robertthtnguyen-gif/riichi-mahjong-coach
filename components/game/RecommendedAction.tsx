@@ -1,8 +1,7 @@
 'use client';
 
-import { useMemo } from 'react';
 import { GameConfig, Meld, Tile, WindValue, OpponentDiscardEvent } from '@/lib/types';
-import { analyzeGameHand } from '@/lib/handAdvisor';
+import { analyzeGameHand, HandAnalysis } from '@/lib/handAdvisor';
 
 interface RecommendedActionProps {
   hand: Tile[];
@@ -12,6 +11,7 @@ interface RecommendedActionProps {
   isRiichi: boolean;
   isTsumo: boolean;
   lastOpponentDiscard: OpponentDiscardEvent | null;
+  analysis?: HandAnalysis;
 }
 
 function formatYakuName(name: string): string {
@@ -33,88 +33,56 @@ export function RecommendedAction({
   isRiichi,
   isTsumo,
   lastOpponentDiscard,
+  analysis: providedAnalysis,
 }: RecommendedActionProps) {
-  const analysis = useMemo(
-    () => analyzeGameHand(hand, melds, seatWind, config, isRiichi, isTsumo, lastOpponentDiscard),
-    [hand, melds, seatWind, config, isRiichi, isTsumo, lastOpponentDiscard]
-  );
+  const analysis =
+    providedAnalysis ??
+    analyzeGameHand(hand, melds, seatWind, config, isRiichi, isTsumo, lastOpponentDiscard);
+
+  const balancedLines = analysis.strategyRecommendations.balanced.explanation;
 
   return (
-    <div className="space-y-4 rounded-xl border border-cyan-500/30 bg-gradient-to-br from-gray-800 to-gray-900 p-4 sm:space-y-5 sm:p-5">
-      <div className="space-y-1">
-        <h3 className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-300">
-          Strategy Advisor
-        </h3>
-        <p className="text-sm text-gray-400">Deterministic hand guidance from the current state.</p>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-lg border border-gray-700 bg-gray-800/70 p-3">
-          <p className="text-[11px] uppercase tracking-wider text-gray-500">Current Shanten</p>
-          <p className="mt-1 text-2xl font-bold text-white">{analysis.shanten}</p>
+    <div className="space-y-3 rounded-[1.75rem] border border-cyan-500/25 bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.18),_transparent_42%),linear-gradient(135deg,rgba(10,18,28,0.96),rgba(14,24,36,0.96))] p-4 shadow-[0_16px_38px_rgba(0,0,0,0.28)]">
+      <div className="flex items-start justify-between gap-4">
+        <div className="space-y-1">
+          <h3 className="text-xs font-semibold uppercase tracking-[0.26em] text-cyan-300">
+            Live Recommendation
+          </h3>
+          <p className="text-3xl font-black tracking-tight text-white">
+            {analysis.bestDiscard ?? '—'}
+          </p>
+          <p className="text-sm text-cyan-100/90">
+            {analysis.bestDiscard
+              ? `Discard ${analysis.bestDiscard} next`
+              : 'No discard recommendation yet'}
+          </p>
         </div>
-        <div className="rounded-lg border border-gray-700 bg-gray-800/70 p-3">
-          <p className="text-[11px] uppercase tracking-wider text-gray-500">Current Ukeire</p>
-          <p className="mt-1 text-2xl font-bold text-emerald-300">{analysis.ukeire}</p>
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        <p className="text-[11px] uppercase tracking-wider text-gray-500">Possible Yaku</p>
-        {analysis.possibleYaku.length > 0 ? (
-          <div className="flex flex-wrap gap-2">
-            {analysis.possibleYaku.map(name => (
-              <span
-                key={name}
-                className="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-2.5 py-1 text-xs font-medium text-cyan-200"
-              >
-                {formatYakuName(name)}
-              </span>
-            ))}
+        <div className="space-y-2 text-right">
+          <div className="rounded-full border border-rose-400/30 bg-rose-500/10 px-3 py-1 text-xs font-semibold text-rose-100">
+            Speed: {analysis.bestSpeedDiscard ?? '—'}
           </div>
-        ) : (
-          <p className="text-sm text-gray-500">No immediate yaku line detected.</p>
-        )}
-      </div>
-
-      <div className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-3">
-        <p className="text-[11px] uppercase tracking-wider text-amber-200/80">Target Yaku</p>
-        <p className="mt-1 text-sm font-semibold text-amber-100">{analysis.targetYaku}</p>
-      </div>
-
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <div className="rounded-lg border border-gray-700 bg-gray-800/70 p-3">
-          <p className="text-[11px] uppercase tracking-wider text-gray-500">Balanced Discard</p>
-          <p className="mt-1 text-xl font-bold text-rose-300">{analysis.bestDiscard ?? '—'}</p>
-        </div>
-        <div className="rounded-lg border border-gray-700 bg-gray-800/70 p-3 sm:col-span-2">
-          <p className="text-[11px] uppercase tracking-wider text-gray-500">Alternative</p>
-          <p className="mt-1 text-sm font-semibold text-white">
-            {analysis.alternatives.length > 0 ? analysis.alternatives.join('  ') : '—'}
-          </p>
+          <div className="rounded-full border border-amber-400/30 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-100">
+            Value: {analysis.bestValueDiscard ?? '—'}
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div className="rounded-lg border border-gray-700 bg-gray-800/70 p-3">
-          <p className="text-[11px] uppercase tracking-wider text-gray-500">Best Speed Discard</p>
-          <p className="mt-1 text-lg font-bold text-emerald-300">
-            {analysis.bestSpeedDiscard ?? '—'}
-          </p>
-        </div>
-        <div className="rounded-lg border border-gray-700 bg-gray-800/70 p-3">
-          <p className="text-[11px] uppercase tracking-wider text-gray-500">Best Value Discard</p>
-          <p className="mt-1 text-lg font-bold text-amber-200">
-            {analysis.bestValueDiscard ?? '—'}
-          </p>
-        </div>
+      <div className="grid grid-cols-3 gap-2">
+        {Object.entries(analysis.strategyRecommendations).map(([mode, recommendation]) => (
+          <div key={mode} className="rounded-2xl border border-white/8 bg-white/5 p-3">
+            <p className="text-[10px] uppercase tracking-[0.18em] text-gray-400">
+              {formatModeName(mode)}
+            </p>
+            <p className="mt-1 text-sm font-bold text-white">{recommendation.discard ?? '—'}</p>
+          </div>
+        ))}
       </div>
 
-      <div className="space-y-2 rounded-lg border border-gray-700 bg-gray-800/70 p-3">
-        <p className="text-[11px] uppercase tracking-wider text-gray-500">Balanced Explanation</p>
-        {analysis.recommendation.length > 0 ? (
-          analysis.recommendation.map(line => (
-            <p key={line} className="text-sm font-medium text-white">
+      <div className="space-y-2 rounded-2xl border border-cyan-400/15 bg-gray-950/35 p-3">
+        <p className="text-[11px] uppercase tracking-[0.18em] text-gray-400">Why</p>
+        {balancedLines.length > 0 ? (
+          balancedLines.slice(0, 2).map(line => (
+            <p key={line} className="text-sm text-white/90">
               {line}
             </p>
           ))
@@ -123,35 +91,21 @@ export function RecommendedAction({
         )}
       </div>
 
-      <div className="space-y-3">
-        {Object.entries(analysis.strategyRecommendations).map(([mode, recommendation]) => (
-          <div
-            key={mode}
-            className="space-y-2 rounded-lg border border-gray-700 bg-gray-800/70 p-3"
+      <div className="flex flex-wrap gap-2">
+        {analysis.possibleYaku.slice(0, 4).map(name => (
+          <span
+            key={name}
+            className="rounded-full border border-cyan-500/25 bg-cyan-500/10 px-2.5 py-1 text-xs font-medium text-cyan-100"
           >
-            <p className="text-[11px] uppercase tracking-wider text-gray-500">
-              {formatModeName(mode)} Strategy
-            </p>
-            <p className="text-sm font-semibold text-white">
-              Discard: {recommendation.discard ?? '—'}
-            </p>
-            {recommendation.explanation.length > 0 ? (
-              recommendation.explanation.map(line => (
-                <p key={`${mode}-${line}`} className="text-sm text-gray-300">
-                  {line}
-                </p>
-              ))
-            ) : (
-              <p className="text-sm text-gray-500">No strategy note available.</p>
-            )}
-          </div>
+            {formatYakuName(name)}
+          </span>
         ))}
       </div>
 
       {analysis.callRecommendation.length > 0 && (
-        <div className="space-y-2 rounded-lg border border-sky-500/25 bg-sky-500/10 p-3">
+        <div className="space-y-2 rounded-2xl border border-sky-500/25 bg-sky-500/10 p-3">
           <p className="text-[11px] uppercase tracking-wider text-sky-200/80">Call Advice</p>
-          {analysis.callRecommendation.map(line => (
+          {analysis.callRecommendation.slice(0, 2).map(line => (
             <p key={line} className="text-sm font-medium text-sky-100">
               {line}
             </p>
@@ -160,7 +114,7 @@ export function RecommendedAction({
       )}
 
       {analysis.warnings.length > 0 && (
-        <div className="space-y-1 rounded-lg border border-red-500/30 bg-red-500/10 p-3">
+        <div className="space-y-1 rounded-2xl border border-red-500/30 bg-red-500/10 p-3">
           {analysis.warnings.map(warning => (
             <p key={warning} className="text-sm text-red-200">
               {warning}

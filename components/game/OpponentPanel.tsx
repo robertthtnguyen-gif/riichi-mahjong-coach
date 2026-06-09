@@ -1,9 +1,8 @@
 'use client';
 
-import { useState } from 'react';
 import { Opponent, OpponentPosition, Tile } from '@/lib/types';
 import { TileDisplay } from './TileDisplay';
-import { validateSingleTile } from '@/lib/tileValidator';
+import { TilePicker } from './TilePicker';
 
 interface OpponentPanelProps {
   opponent: Opponent;
@@ -22,19 +21,30 @@ const WIND_LABELS: Record<string, string> = {
 };
 
 export function OpponentPanel({ opponent, onDiscard, onRiichi }: OpponentPanelProps) {
-  const [discardInput, setDiscardInput] = useState('');
-  const [discardError, setDiscardError] = useState('');
+  const pickerLabels = [
+    '1m', '2m', '3m', '4m', '5m', '0m', '6m', '7m', '8m', '9m',
+    '1p', '2p', '3p', '4p', '5p', '0p', '6p', '7p', '8p', '9p',
+    '1s', '2s', '3s', '4s', '5s', '0s', '6s', '7s', '8s', '9s',
+    'E', 'S', 'W', 'N', 'R', 'G', 'Wh',
+  ] as const;
 
-  function handleAddDiscard() {
-    setDiscardError('');
-    const result = validateSingleTile(discardInput.trim());
-    if (!result.valid) {
-      setDiscardError(result.errors.join(', '));
-      return;
-    }
-    onDiscard(opponent.position, result.tiles[0]);
-    setDiscardInput('');
+  function makeTile(label: string): Tile {
+    if (label === 'E') return { suit: 'wind', value: 'east', isRed: false, id: crypto.randomUUID() };
+    if (label === 'S') return { suit: 'wind', value: 'south', isRed: false, id: crypto.randomUUID() };
+    if (label === 'W') return { suit: 'wind', value: 'west', isRed: false, id: crypto.randomUUID() };
+    if (label === 'N') return { suit: 'wind', value: 'north', isRed: false, id: crypto.randomUUID() };
+    if (label === 'R') return { suit: 'dragon', value: 'red', isRed: false, id: crypto.randomUUID() };
+    if (label === 'G') return { suit: 'dragon', value: 'green', isRed: false, id: crypto.randomUUID() };
+    if (label === 'Wh') return { suit: 'dragon', value: 'white', isRed: false, id: crypto.randomUUID() };
+
+    const isRed = label[0] === '0';
+    const value = isRed ? 5 : Number(label[0]);
+    const suitCode = label[1];
+    const suit = suitCode === 'm' ? 'man' : suitCode === 'p' ? 'pin' : 'sou';
+    return { suit, value, isRed, id: crypto.randomUUID() };
   }
+
+  const pickerTiles = pickerLabels.map(makeTile);
 
   return (
     <div className="space-y-3 rounded-xl border border-gray-600 bg-gray-700/50 p-3">
@@ -83,26 +93,12 @@ export function OpponentPanel({ opponent, onDiscard, onRiichi }: OpponentPanelPr
         )}
       </div>
 
-      {/* Add discard */}
-      <div className="flex gap-1.5">
-        <input
-          type="text"
-          value={discardInput}
-          onChange={e => { setDiscardInput(e.target.value); setDiscardError(''); }}
-          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddDiscard(); } }}
-          placeholder="Add discard…"
-          className="flex-1 bg-gray-600 border border-gray-500 rounded px-2 py-1 text-white font-mono text-xs placeholder-gray-500 focus:outline-none focus:border-blue-400 min-w-0"
-        />
-        <button
-          type="button"
-          onClick={handleAddDiscard}
-          disabled={!discardInput.trim()}
-          className="px-2.5 py-1 bg-gray-600 hover:bg-gray-500 text-gray-200 rounded text-xs font-medium transition-colors disabled:opacity-40 shrink-0"
-        >
-          +
-        </button>
-      </div>
-      {discardError && <p className="text-xs text-red-400">{discardError}</p>}
+      <TilePicker
+        title="Add Discard"
+        tiles={pickerTiles}
+        onPick={tile => onDiscard(opponent.position, tile)}
+        size="xs"
+      />
 
       {/* Open Melds */}
       {opponent.melds.length > 0 && (
