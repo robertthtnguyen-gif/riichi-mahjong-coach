@@ -1,28 +1,31 @@
 'use client';
 
+import { WindValue } from '@/lib/types';
 import { useEffect, useMemo } from 'react';
-import { validateHandInput } from '@/lib/tileValidator';
+import { validateStartingHand } from '@/lib/tileValidator';
 import { Tile } from '@/lib/types';
 
 interface HandInputProps {
   value: string;
   onChange: (value: string) => void;
   redFivesEnabled: boolean;
+  seatWind: WindValue | '';
   onValidTiles: (tiles: Tile[]) => void;
 }
 
-export function HandInput({ value, onChange, redFivesEnabled, onValidTiles }: HandInputProps) {
+export function HandInput({ value, onChange, redFivesEnabled, seatWind, onValidTiles }: HandInputProps) {
+  const expectedTileCount = seatWind === 'east' ? 14 : 13;
   const result = useMemo(
     () =>
       value.trim()
-        ? validateHandInput(value, redFivesEnabled)
+        ? validateStartingHand(value, redFivesEnabled, expectedTileCount)
         : { valid: false, tiles: [], errors: [] },
-    [value, redFivesEnabled]
+    [value, redFivesEnabled, expectedTileCount]
   );
   const errors = result.errors;
   const tileCount = result.tiles.length;
 
-  const isValid = errors.length === 0 && tileCount === 13;
+  const isValid = errors.length === 0 && tileCount === expectedTileCount;
   const hasInput = value.trim().length > 0;
 
   useEffect(() => {
@@ -41,10 +44,16 @@ export function HandInput({ value, onChange, redFivesEnabled, onValidTiles }: Ha
               isValid ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
             }`}
           >
-            {tileCount} / 13 tiles
+            {tileCount} / {expectedTileCount} tiles
           </span>
         )}
       </div>
+
+      <p className="text-xs font-medium text-gray-600">
+        {seatWind === 'east'
+          ? 'You are dealer. Enter 14 starting tiles.'
+          : 'Enter 13 starting tiles.'}
+      </p>
 
       <textarea
         value={value}

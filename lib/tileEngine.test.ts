@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { parseTileNotation } from './tileParser';
 import {
   validateDrawnHand,
-  validateHandInput,
   validateSingleTile,
   validateStartingHand,
 } from './tileValidator';
@@ -51,8 +50,16 @@ describe('parseTileNotation', () => {
 });
 
 describe('hand validation', () => {
-  it('accepts a valid 13-tile starting hand', () => {
-    const result = validateStartingHand('123m 456p 789s EE RR', true);
+  it('accepts a valid 14-tile starting hand for East', () => {
+    const result = validateStartingHand('123m 456p 789s EEE RR', true, 14);
+
+    expect(result.valid).toBe(true);
+    expect(result.errors).toEqual([]);
+    expect(result.tiles).toHaveLength(14);
+  });
+
+  it('accepts a valid 13-tile starting hand for non-East', () => {
+    const result = validateStartingHand('123m 456p 789s EE RR', true, 13);
 
     expect(result.valid).toBe(true);
     expect(result.errors).toEqual([]);
@@ -67,11 +74,18 @@ describe('hand validation', () => {
     expect(result.tiles).toHaveLength(14);
   });
 
-  it('rejects a starting hand with the wrong tile count', () => {
-    const result = validateHandInput('123m 456p 789s EE', true);
+  it('rejects a non-East starting hand with 14 tiles', () => {
+    const result = validateStartingHand('123m 456p 789s EEE RR', true, 13);
 
     expect(result.valid).toBe(false);
-    expect(result.errors).toContain('Hand must have exactly 13 tiles (found 11).');
+    expect(result.errors).toContain('Hand must have exactly 13 tiles (found 14).');
+  });
+
+  it('rejects an East starting hand with 13 tiles', () => {
+    const result = validateStartingHand('123m 456p 789s EE RR', true, 14);
+
+    expect(result.valid).toBe(false);
+    expect(result.errors).toContain('Hand must have exactly 14 tiles (found 13).');
   });
 
   it('rejects a drawn hand with the wrong tile count', () => {

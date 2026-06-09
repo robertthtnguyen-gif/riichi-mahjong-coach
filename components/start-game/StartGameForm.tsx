@@ -7,7 +7,7 @@ import { RoundSelector } from './RoundSelector';
 import { BooleanToggle } from './BooleanToggle';
 import { HandInput } from './HandInput';
 import { RoundId, WindValue, StartGameData, Tile } from '@/lib/types';
-import { validateHandInput, validateSingleTile } from '@/lib/tileValidator';
+import { validateSingleTile, validateStartingHand } from '@/lib/tileValidator';
 
 export function StartGameForm() {
   const router = useRouter();
@@ -30,7 +30,8 @@ export function StartGameForm() {
       return;
     }
 
-    const handResult = validateHandInput(startingHandStr, redFivesEnabled);
+    const expectedTileCount = seatWind === 'east' ? 14 : 13;
+    const handResult = validateStartingHand(startingHandStr, redFivesEnabled, expectedTileCount);
     if (!handResult.valid) {
       setSubmitError('Fix the hand validation errors before starting.');
       return;
@@ -107,6 +108,7 @@ export function StartGameForm() {
         value={startingHandStr}
         onChange={setStartingHandStr}
         redFivesEnabled={redFivesEnabled}
+        seatWind={seatWind}
         onValidTiles={() => {}}
       />
 

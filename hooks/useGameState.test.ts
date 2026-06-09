@@ -17,16 +17,26 @@ const baseGameData: StartGameData = {
 };
 
 describe('gameReducer', () => {
-  it('starts from the dealer turn and detects whether it is my turn', () => {
-    const eastSeat = buildInitialState({ ...baseGameData, seatWind: 'east' }, tiles(baseGameData.startingHandStr), []);
+  it('starts East in dealer discard phase and non-East on opponent turn', () => {
+    const eastSeat = buildInitialState(
+      { ...baseGameData, seatWind: 'east', startingHandStr: '123m 456m 789p 55s EEE' },
+      tiles('123m 456m 789p 55s EEE'),
+      []
+    );
     expect(eastSeat.currentActor).toBe('east');
     expect(eastSeat.currentTurn).toBe('self');
-    expect(eastSeat.phase).toBe('MY_DRAW');
+    expect(eastSeat.phase).toBe('MY_DISCARD');
+    expect(eastSeat.player.isDealer).toBe(true);
 
-    const southSeat = buildInitialState({ ...baseGameData, seatWind: 'south' }, tiles(baseGameData.startingHandStr), []);
+    const southSeat = buildInitialState(
+      { ...baseGameData, seatWind: 'south', startingHandStr: '123m 456m 789p 55s EE' },
+      tiles('123m 456m 789p 55s EE'),
+      []
+    );
     expect(southSeat.currentActor).toBe('east');
     expect(southSeat.currentTurn).toBe('left');
     expect(southSeat.phase).toBe('OPPONENT_TURN');
+    expect(southSeat.player.isDealer).toBe(false);
   });
 
   it('tracks the latest opponent discard and consumes it on pon', () => {

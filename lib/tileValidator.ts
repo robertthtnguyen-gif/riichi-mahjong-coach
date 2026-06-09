@@ -58,7 +58,7 @@ function validateTileCopies(tiles: Tile[]): string[] {
 function validateHandWithExpectedCount(
   input: string,
   redFivesEnabled: boolean,
-  expectedTileCount: 13 | 14,
+  expectedTileCount: number,
   handLabel: string
 ): ValidationResult {
   if (!input.trim()) {
@@ -91,8 +91,12 @@ export function validateHandInput(input: string, redFivesEnabled: boolean): Vali
   return validateHandWithExpectedCount(input, redFivesEnabled, 13, 'Starting hand');
 }
 
-export function validateStartingHand(input: string, redFivesEnabled: boolean): ValidationResult {
-  return validateHandInput(input, redFivesEnabled);
+export function validateStartingHand(
+  input: string,
+  redFivesEnabled: boolean,
+  expectedTileCount: 13 | 14 = 13
+): ValidationResult {
+  return validateHandWithExpectedCount(input, redFivesEnabled, expectedTileCount, 'Starting hand');
 }
 
 export function validateDrawnHand(input: string, redFivesEnabled: boolean): ValidationResult {

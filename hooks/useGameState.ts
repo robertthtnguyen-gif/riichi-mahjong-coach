@@ -32,11 +32,6 @@ function roundWindFromId(roundId: RoundId): WindValue {
   return roundId.startsWith('east') ? 'east' : 'south';
 }
 
-function dealerWindFromRoundId(roundId: RoundId): WindValue {
-  const handNumber = Number(roundId.split('-')[1]);
-  return WIND_ORDER[handNumber - 1];
-}
-
 function nextWind(wind: WindValue): WindValue {
   return WIND_ORDER[(WIND_ORDER.indexOf(wind) + 1) % 4];
 }
@@ -317,8 +312,8 @@ export function buildInitialState(
 ): GameState {
   const [leftWind, acrossWind, rightWind] = getOpponentWinds(data.seatWind);
   const roundWind = roundWindFromId(data.roundId);
-  const startingActor = dealerWindFromRoundId(data.roundId);
-  const isDealer = data.seatWind === startingActor;
+  const startingActor: WindValue = 'east';
+  const isDealer = data.seatWind === 'east';
 
   return {
     player: {
@@ -363,7 +358,7 @@ export function buildInitialState(
       redFivesEnabled: data.redFivesEnabled,
       openTanyaoEnabled: data.openTanyaoEnabled,
     },
-    phase: phaseForActor(data.seatWind, startingActor),
+    phase: isDealer ? 'MY_DISCARD' : phaseForActor(data.seatWind, startingActor),
     currentActor: startingActor,
     currentTurn: actorFromWind(data.seatWind, startingActor),
     drawnTile: null,
