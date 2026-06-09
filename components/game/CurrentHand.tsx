@@ -8,7 +8,7 @@ interface CurrentHandProps {
   selectedTileId: string | null;
   onSelectTile: (id: string) => void;
   isRiichi: boolean;
-  phase: 'draw' | 'discard';
+  phase: 'OPPONENT_TURN' | 'OPPONENT_DISCARDED' | 'CALL_DECISION' | 'MY_DRAW' | 'MY_DISCARD' | 'HAND_END';
   bestDiscard?: string | null;
   onDiscardSelected?: () => void;
   compact?: boolean;
@@ -78,11 +78,11 @@ export function CurrentHand({
         <p className="text-[11px] text-gray-500">
           {isRiichi
             ? 'Hand is locked in riichi.'
-            : phase === 'discard'
+            : phase === 'MY_DISCARD'
             ? 'Tap a tile, then discard it.'
             : 'Use Draw to add the current tile first.'}
         </p>
-        {!isRiichi && phase === 'discard' && onDiscardSelected ? (
+        {!isRiichi && phase === 'MY_DISCARD' && onDiscardSelected ? (
           <button
             type="button"
             onClick={onDiscardSelected}

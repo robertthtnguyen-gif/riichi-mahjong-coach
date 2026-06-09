@@ -1,5 +1,3 @@
-// hooks/useGameState.ts
-
 'use client';
 
 import { useReducer } from 'react';
@@ -10,6 +8,7 @@ import {
   WindValue,
   StartGameData,
   OpponentDiscardEvent,
+  TableActor,
 } from '@/lib/types';
 
 type GameAction =
@@ -19,9 +18,34 @@ type GameAction =
   | { type: 'PON'; meldTiles: [Tile, Tile, Tile] }
   | { type: 'KAN'; meldTiles: Tile[] }
   | { type: 'RIICHI'; tileId: string }
+  | { type: 'RON' }
+  | { type: 'TSUMO' }
+  | { type: 'PASS_CALL' }
   | { type: 'OPPONENT_DISCARD'; position: OpponentPosition; tile: Tile }
   | { type: 'OPPONENT_RIICHI'; position: OpponentPosition }
   | { type: 'OPPONENT_MELD'; position: OpponentPosition; meldType: 'chi' | 'pon' | 'kan'; tiles: Tile[] };
+
+const WIND_ORDER: WindValue[] = ['east', 'south', 'west', 'north'];
+
+function nextWind(wind: WindValue): WindValue {
+  return WIND_ORDER[(WIND_ORDER.indexOf(wind) + 1) % 4];
+}
+
+function actorFromWind(playerSeat: WindValue, actor: WindValue): TableActor {
+  if (actor === playerSeat) {
+    return 'self';
+  }
+  const playerIndex = WIND_ORDER.indexOf(playerSeat);
+  const actorIndex = WIND_ORDER.indexOf(actor);
+  const diff = (actorIndex - playerIndex + 4) % 4;
+  if (diff === 1) return 'right';
+  if (diff === 2) return 'across';
+  return 'left';
+}
+
+function phaseForActor(playerSeat: WindValue, actor: WindValue): GameState['phase'] {
+  return actor === playerSeat ? 'MY_DRAW' : 'OPPONENT_TURN';
+}
 
 function removeById(hand: Tile[], id: string): Tile[] {
   const idx = hand.findIndex(t => t.id === id);
@@ -85,12 +109,22 @@ function consumeLastOpponentDiscard(
   });
 }
 
+function buildNextTurnState(state: GameState, actor: WindValue): Pick<GameState, 'currentActor' | 'currentTurn' | 'phase'> {
+  return {
+    currentActor: actor,
+    currentTurn: actorFromWind(state.player.seatWind, actor),
+    phase: phaseForActor(state.player.seatWind, actor),
+  };
+}
+
 export function gameReducer(state: GameState, action: GameAction): GameState {
   switch (action.type) {
     case 'DRAW_TILE':
       return {
         ...state,
-        phase: 'discard',
+        phase: 'MY_DISCARD',
+        currentActor: state.player.seatWind,
+        currentTurn: 'self',
         drawnTile: action.tile,
         lastOpponentDiscard: null,
         player: {
@@ -99,10 +133,11 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         },
       };
 
-    case 'DISCARD_TILE':
+    case 'DISCARD_TILE': {
+      const nextActor = nextWind(state.player.seatWind);
       return {
         ...state,
-        phase: 'draw',
+        ...buildNextTurnState(state, nextActor),
         drawnTile: null,
         lastOpponentDiscard: null,
         turnCount: state.turnCount + 1,
@@ -115,12 +150,14 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           ].filter(Boolean),
         },
       };
+    }
 
     case 'RIICHI': {
+      const nextActor = nextWind(state.player.seatWind);
       const discarded = state.player.hand.find(t => t.id === action.tileId);
       return {
         ...state,
-        phase: 'draw',
+        ...buildNextTurnState(state, nextActor),
         drawnTile: null,
         lastOpponentDiscard: null,
         turnCount: state.turnCount + 1,
@@ -141,7 +178,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
       return {
         ...state,
-        phase: 'discard',
+        phase: 'MY_DISCARD',
+        currentActor: state.player.seatWind,
+        currentTurn: 'self',
         drawnTile: null,
         lastOpponentDiscard: null,
         opponents: consumeLastOpponentDiscard(state.opponents, state.lastOpponentDiscard),
@@ -159,7 +198,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
       return {
         ...state,
-        phase: 'discard',
+        phase: 'MY_DISCARD',
+        currentActor: state.player.seatWind,
+        currentTurn: 'self',
         drawnTile: null,
         lastOpponentDiscard: null,
         opponents: consumeLastOpponentDiscard(state.opponents, state.lastOpponentDiscard),
@@ -174,6 +215,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     case 'KAN':
       return {
         ...state,
+        phase: 'MY_DISCARD',
+        currentActor: state.player.seatWind,
+        currentTurn: 'self',
         lastOpponentDiscard: null,
         player: {
           ...state.player,
@@ -181,10 +225,32 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         },
       };
 
-    case 'OPPONENT_DISCARD':
+    case 'PASS_CALL': {
+      const nextActor = state.lastOpponentDiscard ? nextWind(state.lastOpponentDiscard.actor) : nextWind(state.currentActor);
       return {
         ...state,
-        lastOpponentDiscard: { position: action.position, tile: action.tile },
+        ...buildNextTurnState(state, nextActor),
+        lastOpponentDiscard: null,
+        drawnTile: null,
+      };
+    }
+
+    case 'RON':
+    case 'TSUMO':
+      return {
+        ...state,
+        phase: 'HAND_END',
+      };
+
+    case 'OPPONENT_DISCARD': {
+      const opponent = state.opponents.find(o => o.position === action.position);
+      const actor = opponent?.seatWind ?? state.currentActor;
+      return {
+        ...state,
+        currentActor: actor,
+        currentTurn: action.position,
+        phase: 'CALL_DECISION',
+        lastOpponentDiscard: { position: action.position, tile: action.tile, actor },
         opponents: state.opponents.map(o =>
           o.position === action.position
             ? {
@@ -195,11 +261,11 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
             : o
         ),
       };
+    }
 
     case 'OPPONENT_RIICHI':
       return {
         ...state,
-        lastOpponentDiscard: null,
         opponents: state.opponents.map(o =>
           o.position === action.position ? { ...o, isRiichi: true } : o
         ),
@@ -209,6 +275,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       return {
         ...state,
         lastOpponentDiscard: null,
+        phase: 'OPPONENT_TURN',
         opponents: state.opponents.map(o =>
           o.position === action.position
             ? {
@@ -224,11 +291,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
   }
 }
 
-const WIND_ORDER: WindValue[] = ['east', 'south', 'west', 'north'];
-
 function getOpponentWinds(playerSeat: WindValue): [WindValue, WindValue, WindValue] {
   const idx = WIND_ORDER.indexOf(playerSeat);
-  // left=kamicha (+3), across=toimen (+2), right=shimocha (+1)
   return [
     WIND_ORDER[(idx + 3) % 4],
     WIND_ORDER[(idx + 2) % 4],
@@ -242,6 +306,7 @@ export function buildInitialState(
   doraTiles: Tile[]
 ): GameState {
   const [leftWind, acrossWind, rightWind] = getOpponentWinds(data.seatWind);
+  const startingActor: WindValue = 'east';
 
   return {
     player: {
@@ -285,7 +350,9 @@ export function buildInitialState(
       redFivesEnabled: data.redFivesEnabled,
       openTanyaoEnabled: data.openTanyaoEnabled,
     },
-    phase: 'draw',
+    phase: phaseForActor(data.seatWind, startingActor),
+    currentActor: startingActor,
+    currentTurn: actorFromWind(data.seatWind, startingActor),
     drawnTile: null,
     lastOpponentDiscard: null,
     turnCount: 0,
@@ -303,6 +370,9 @@ export function useGameState(initialState: GameState) {
     chi: (meldTiles: [Tile, Tile, Tile]) => dispatch({ type: 'CHI', meldTiles }),
     pon: (meldTiles: [Tile, Tile, Tile]) => dispatch({ type: 'PON', meldTiles }),
     kan: (meldTiles: Tile[]) => dispatch({ type: 'KAN', meldTiles }),
+    ron: () => dispatch({ type: 'RON' }),
+    tsumo: () => dispatch({ type: 'TSUMO' }),
+    passCall: () => dispatch({ type: 'PASS_CALL' }),
     opponentDiscard: (position: OpponentPosition, tile: Tile) =>
       dispatch({ type: 'OPPONENT_DISCARD', position, tile }),
     opponentRiichi: (position: OpponentPosition) =>

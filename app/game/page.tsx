@@ -12,6 +12,8 @@ import { OpponentTracking } from '@/components/game/OpponentTracking';
 import { RecommendedAction } from '@/components/game/RecommendedAction';
 import { YakuPanel } from '@/components/game/YakuPanel';
 import { analyzeGameHand } from '@/lib/handAdvisor';
+import { evaluateCallRecommendation } from '@/lib/callAdvisor';
+import { detectYaku } from '@/lib/yaku';
 
 function GameTable({ initialState }: { initialState: GameState }) {
   const {
@@ -22,6 +24,9 @@ function GameTable({ initialState }: { initialState: GameState }) {
     chi,
     pon,
     kan,
+    ron,
+    tsumo,
+    passCall,
     opponentDiscard,
     opponentRiichi,
   } = useGameState(initialState);
@@ -36,11 +41,56 @@ function GameTable({ initialState }: { initialState: GameState }) {
         state.player.seatWind,
         state.config,
         state.player.isRiichi,
-        state.phase === 'discard',
+        state.phase === 'MY_DISCARD',
         state.lastOpponentDiscard
       ),
     [state]
   );
+  const callRecommendation = useMemo(
+    () =>
+      evaluateCallRecommendation({
+        hand: state.player.hand,
+        melds: state.player.melds,
+        seatWind: state.player.seatWind,
+        roundWind: state.config.roundWind,
+        doraTiles: state.config.doraTiles,
+        openTanyaoEnabled: state.config.openTanyaoEnabled,
+        isRiichi: state.player.isRiichi,
+        lastOpponentDiscard: state.lastOpponentDiscard,
+      }),
+    [state]
+  );
+  const canRon = useMemo(() => {
+    if (!state.lastOpponentDiscard) return false;
+    const result = detectYaku({
+      hand: [...state.player.hand, state.lastOpponentDiscard.tile],
+      melds: state.player.melds,
+      seatWind: state.player.seatWind,
+      roundWind: state.config.roundWind,
+      doraTiles: state.config.doraTiles,
+      winningTile: state.lastOpponentDiscard.tile,
+      winMethod: 'ron',
+      isRiichi: state.player.isRiichi,
+      openTanyaoEnabled: state.config.openTanyaoEnabled,
+    });
+    return result.yaku.length > 0 && (result.isYakuman || result.han > 0);
+  }, [state]);
+  const canTsumo = useMemo(() => {
+    if (state.phase !== 'MY_DISCARD' || !state.drawnTile) return false;
+    const result = detectYaku({
+      hand: state.player.hand,
+      melds: state.player.melds,
+      seatWind: state.player.seatWind,
+      roundWind: state.config.roundWind,
+      doraTiles: state.config.doraTiles,
+      winningTile: state.drawnTile,
+      winMethod: 'tsumo',
+      isRiichi: state.player.isRiichi,
+      isTsumo: true,
+      openTanyaoEnabled: state.config.openTanyaoEnabled,
+    });
+    return result.yaku.length > 0 && (result.isYakuman || result.han > 0);
+  }, [state]);
 
   function handleDrawTile(tile: Tile) {
     drawTile(tile);
@@ -84,7 +134,7 @@ function GameTable({ initialState }: { initialState: GameState }) {
         <div className="mx-auto flex max-w-screen-2xl flex-col gap-2 px-3 py-2 sm:px-4 lg:px-6">
           <div className="flex items-center justify-between gap-3">
             <p className="min-w-0 truncate text-[11px] font-semibold text-cyan-100/80 sm:text-xs">
-              {`${state.config.roundWind[0].toUpperCase()}${state.config.roundWind.slice(1)} ${state.turnCount + 1} | ${state.player.seatWind[0].toUpperCase()}${state.player.seatWind.slice(1)} | Shanten ${analysis.shanten} | Ukeire ${analysis.ukeire}`}
+              {`${state.config.roundWind[0].toUpperCase()}${state.config.roundWind.slice(1)} ${state.turnCount + 1} | ${state.player.seatWind[0].toUpperCase()}${state.player.seatWind.slice(1)} | ${state.currentTurn === 'self' ? 'My turn' : `${state.currentTurn} turn`} | Shanten ${analysis.shanten} | Ukeire ${analysis.ukeire}`}
             </p>
             <div className="flex items-center gap-2">
               <div className="hidden sm:block">
@@ -147,7 +197,7 @@ function GameTable({ initialState }: { initialState: GameState }) {
               seatWind={state.player.seatWind}
               config={state.config}
               isRiichi={state.player.isRiichi}
-              isTsumo={state.phase === 'discard'}
+              isTsumo={state.phase === 'MY_DISCARD'}
               lastOpponentDiscard={state.lastOpponentDiscard}
               analysis={analysis}
               compact
@@ -262,16 +312,23 @@ function GameTable({ initialState }: { initialState: GameState }) {
         opponents={state.opponents}
         selectedTileId={selectedTileId}
         phase={state.phase}
+        currentTurn={state.currentTurn}
         isRiichi={state.player.isRiichi}
         lastOpponentDiscard={state.lastOpponentDiscard}
+        callRecommendation={callRecommendation}
+        canRon={canRon}
+        canTsumo={canTsumo}
         onDraw={handleDrawTile}
-        onRiichi={handleRiichi}
+        onDiscard={handleDiscardSelected}
+        onRiichi={() => selectedTileId && handleRiichi(selectedTileId)}
         onChi={chi}
         onPon={pon}
         onKan={kan}
+        onRon={ron}
+        onTsumo={tsumo}
+        onPass={passCall}
         onOpponentDiscard={opponentDiscard}
         onOpponentRiichi={opponentRiichi}
-        focusMode={focusMode}
       />
     </div>
   );

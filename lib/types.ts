@@ -32,6 +32,7 @@ export interface Opponent {
 export interface OpponentDiscardEvent {
   position: OpponentPosition;
   tile: Tile;
+  actor: WindValue;
 }
 
 export interface Player {
@@ -51,13 +52,23 @@ export interface GameConfig {
   openTanyaoEnabled: boolean;
 }
 
-export type GamePhase = 'draw' | 'discard';
+export type GamePhase =
+  | 'OPPONENT_TURN'
+  | 'OPPONENT_DISCARDED'
+  | 'CALL_DECISION'
+  | 'MY_DRAW'
+  | 'MY_DISCARD'
+  | 'HAND_END';
+
+export type TableActor = 'self' | OpponentPosition;
 
 export interface GameState {
   player: Player;
   opponents: Opponent[];
   config: GameConfig;
   phase: GamePhase;
+  currentActor: WindValue;
+  currentTurn: TableActor;
   drawnTile: Tile | null;
   lastOpponentDiscard: OpponentDiscardEvent | null;
   turnCount: number;

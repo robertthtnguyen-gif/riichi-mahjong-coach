@@ -84,7 +84,7 @@ describe('analyzeHand', () => {
       isRiichi: false,
       isTsumo: false,
       openTanyaoEnabled: true,
-      lastOpponentDiscard: { position: 'across', tile: tiles('E')[0] },
+      lastOpponentDiscard: { position: 'across', tile: tiles('E')[0], actor: 'west' },
     });
 
     expect(result.callRecommendation).toContain('Pon E is viable.');
@@ -100,10 +100,26 @@ describe('analyzeHand', () => {
       isRiichi: false,
       isTsumo: false,
       openTanyaoEnabled: true,
-      lastOpponentDiscard: { position: 'across', tile: tiles('9m')[0] },
+      lastOpponentDiscard: { position: 'across', tile: tiles('9m')[0], actor: 'west' },
     });
 
     expect(result.callRecommendation).toEqual(['Pass and draw.']);
+  });
+
+  it('produces a discard recommendation after my draw phase hand update', () => {
+    const result = analyzeHand({
+      hand: tiles('123m 456m 23p 678s 55p E'),
+      melds: [],
+      seatWind: 'east',
+      roundWind: 'south',
+      doraTiles: [],
+      isRiichi: false,
+      isTsumo: true,
+      openTanyaoEnabled: true,
+    });
+
+    expect(result.bestDiscard).toBe('E');
+    expect(result.bestSpeedDiscard).toBe('E');
   });
 
   it('explains the speed versus value trade-off for the yakuhai hand', () => {

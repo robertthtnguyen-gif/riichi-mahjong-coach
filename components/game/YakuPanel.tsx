@@ -28,7 +28,7 @@ interface YakuPanelProps {
   config: GameConfig;
   isRiichi: boolean;
   drawnTile: Tile | null;
-  phase: 'draw' | 'discard';
+  phase: 'OPPONENT_TURN' | 'OPPONENT_DISCARDED' | 'CALL_DECISION' | 'MY_DRAW' | 'MY_DISCARD' | 'HAND_END';
   lastOpponentDiscard: OpponentDiscardEvent | null;
   collapsed?: boolean;
   targetYaku: string;
@@ -109,7 +109,7 @@ export function YakuPanel({
       roundWind: config.roundWind,
       doraIndicators: config.doraTiles,
       isRiichi,
-      winMethod: phase === 'discard' ? 'tsumo' : 'ron',
+      winMethod: phase === 'MY_DISCARD' ? 'tsumo' : 'ron',
       winningTile: drawnTile,
       openTanyaoEnabled: config.openTanyaoEnabled,
     }),
