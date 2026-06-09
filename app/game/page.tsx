@@ -379,6 +379,7 @@ function GameTable({ initialState }: { initialState: GameState }) {
         selectedTileId={selectedTileId}
         phase={state.phase}
         currentTurn={state.currentTurn}
+        currentActor={state.currentActor}
         isRiichi={state.player.isRiichi}
         lastOpponentDiscard={state.lastOpponentDiscard}
         callRecommendation={callRecommendation}

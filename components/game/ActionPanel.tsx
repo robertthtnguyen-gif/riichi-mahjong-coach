@@ -10,6 +10,7 @@ import {
   OpponentPosition,
   TableActor,
   Tile,
+  WindValue,
 } from '@/lib/types';
 import { TileDisplay } from './TileDisplay';
 import { CallRecommendation } from '@/lib/callAdvisor';
@@ -21,6 +22,7 @@ interface ActionPanelProps {
   selectedTileId: string | null;
   phase: GamePhase;
   currentTurn: TableActor;
+  currentActor: WindValue;
   isRiichi: boolean;
   lastOpponentDiscard: OpponentDiscardEvent | null;
   callRecommendation: CallRecommendation | null;
@@ -147,6 +149,35 @@ export function getFocusActionKeys(): string[] {
   return ['draw', 'discard', 'opponent', 'chi', 'pon', 'kan', 'ron', 'riichi', 'pass'];
 }
 
+export function getExpectedOpponentPosition(
+  currentTurn: TableActor,
+  currentActor: WindValue,
+  opponents: Opponent[]
+): OpponentPosition | null {
+  if (currentTurn === 'self') {
+    return null;
+  }
+
+  const fromActor = opponents.find(opponent => opponent.seatWind === currentActor)?.position ?? null;
+  if (fromActor) {
+    return fromActor;
+  }
+
+  return currentTurn;
+}
+
+export function validateOpponentDiscardSelection(
+  selectedOpponent: OpponentPosition,
+  expectedOpponent: OpponentPosition | null,
+  overrideEnabled: boolean
+): string | null {
+  if (!expectedOpponent || overrideEnabled || selectedOpponent === expectedOpponent) {
+    return null;
+  }
+
+  return `It is ${POSITION_LABELS[expectedOpponent]} player’s turn. Use Override if this is a correction.`;
+}
+
 function primaryActionLabel(phase: GamePhase): string {
   switch (phase) {
     case 'OPPONENT_TURN':
@@ -169,6 +200,7 @@ export function ActionPanel({
   selectedTileId,
   phase,
   currentTurn,
+  currentActor,
   isRiichi,
   lastOpponentDiscard,
   callRecommendation,
@@ -189,8 +221,15 @@ export function ActionPanel({
 }: ActionPanelProps) {
   const layout = getFocusModeLayoutConfig(focusMode);
   const [activeSheet, setActiveSheet] = useState<ActiveSheet>(null);
-  const [activeOpponent, setActiveOpponent] = useState<OpponentPosition>('left');
+  const [manualOpponent, setManualOpponent] = useState<OpponentPosition>('left');
+  const [overrideOpponent, setOverrideOpponent] = useState(false);
+  const [opponentSelectionWarning, setOpponentSelectionWarning] = useState<string | null>(null);
   const drawTiles = useMemo(() => ALL_TILE_LABELS.map(label => makeRuntimeTile(label)), []);
+  const expectedOpponent = useMemo(
+    () => getExpectedOpponentPosition(currentTurn, currentActor, opponents),
+    [currentTurn, currentActor, opponents]
+  );
+  const activeOpponent = overrideOpponent ? manualOpponent : expectedOpponent ?? manualOpponent;
   const chiOptions = useMemo(
     () => (lastOpponentDiscard?.position === 'left' ? buildChiOptions(hand, lastOpponentDiscard.tile) : []),
     [hand, lastOpponentDiscard]
@@ -214,6 +253,7 @@ export function ActionPanel({
 
   function closeSheet() {
     setActiveSheet(null);
+    setOpponentSelectionWarning(null);
   }
 
   function handleDrawPick(tile: Tile) {
@@ -222,6 +262,13 @@ export function ActionPanel({
   }
 
   function handleOpponentDiscard(position: OpponentPosition, tile: Tile) {
+    const validationError = validateOpponentDiscardSelection(position, expectedOpponent, overrideOpponent);
+    if (validationError) {
+      setOpponentSelectionWarning(validationError);
+      return;
+    }
+
+    setOpponentSelectionWarning(null);
     onOpponentDiscard(position, { ...tile, id: crypto.randomUUID() });
     closeSheet();
   }
@@ -298,17 +345,51 @@ export function ActionPanel({
         onClose={closeSheet}
       >
         <div className="space-y-4">
+          <div className="flex items-center justify-between gap-3 rounded-2xl border border-gray-800 bg-gray-950/70 p-3">
+            <div>
+              <p className="text-xs uppercase tracking-[0.18em] text-gray-500">Expected Opponent</p>
+              <p className="text-sm font-semibold text-white">
+                {expectedOpponent ? `${POSITION_LABELS[expectedOpponent]} player discarded` : 'Select opponent'}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                const nextOverride = !overrideOpponent;
+                setOverrideOpponent(nextOverride);
+                setOpponentSelectionWarning(null);
+                if (!nextOverride && expectedOpponent) {
+                  setManualOpponent(expectedOpponent);
+                }
+              }}
+              className={`rounded-full border px-3 py-2 text-xs font-semibold ${
+                overrideOpponent
+                  ? 'border-amber-400/40 bg-amber-500/10 text-amber-100'
+                  : 'border-gray-800 bg-gray-900 text-gray-300'
+              }`}
+            >
+              {overrideOpponent ? 'Override On' : 'Override'}
+            </button>
+          </div>
+
+          {opponentSelectionWarning ? (
+            <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-3 py-2">
+              <p className="text-xs font-medium text-amber-100">{opponentSelectionWarning}</p>
+            </div>
+          ) : null}
+
           <div className="grid grid-cols-3 gap-2">
             {opponents.map(opponent => (
               <button
                 key={opponent.position}
                 type="button"
-                onClick={() => setActiveOpponent(opponent.position)}
+                onClick={() => setManualOpponent(opponent.position)}
+                disabled={!overrideOpponent && expectedOpponent !== opponent.position}
                 className={`rounded-2xl border px-3 py-3 text-left ${
                   activeOpponent === opponent.position
                     ? 'border-cyan-400/50 bg-cyan-500/10'
                     : 'border-gray-800 bg-gray-900'
-                }`}
+                } disabled:opacity-45`}
               >
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400">
                   {POSITION_LABELS[opponent.position]}
@@ -324,7 +405,7 @@ export function ActionPanel({
                 <div className="flex items-center justify-between gap-3 rounded-2xl border border-gray-800 bg-gray-950/70 p-3">
                   <div>
                     <p className="text-xs uppercase tracking-[0.18em] text-gray-500">Current Opponent</p>
-                    <p className="text-sm font-semibold text-white">{POSITION_LABELS[opponent.position]}</p>
+                    <p className="text-sm font-semibold text-white">{POSITION_LABELS[opponent.position]} player</p>
                   </div>
                   <button
                     type="button"
@@ -336,7 +417,7 @@ export function ActionPanel({
                   </button>
                 </div>
                 <TilePicker
-                  title="Opponent discarded this"
+                  title={`${POSITION_LABELS[opponent.position]} player discarded`}
                   tiles={drawTiles}
                   onPick={tile => handleOpponentDiscard(opponent.position, tile)}
                   size="sm"
