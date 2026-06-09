@@ -77,7 +77,7 @@ function GameTable({ initialState }: { initialState: GameState }) {
   }
 
   return (
-    <div className="min-h-screen overflow-hidden bg-[#070b12] text-white">
+    <div className="min-h-screen bg-[#070b12] text-white">
       <header className="sticky top-0 z-20 border-b border-cyan-500/10 bg-[#07111b]/95 backdrop-blur">
         <div className="mx-auto flex max-w-screen-2xl flex-col gap-3 px-3 py-3 sm:px-4 lg:px-6">
           <div className="flex items-center justify-between gap-3">
@@ -136,19 +136,8 @@ function GameTable({ initialState }: { initialState: GameState }) {
         </div>
       </header>
 
-      <main className="mx-auto flex h-[calc(100vh-13.5rem)] max-w-screen-2xl flex-col gap-3 overflow-hidden px-3 pb-28 pt-3 sm:h-[calc(100vh-14rem)] sm:px-4 lg:grid lg:grid-cols-[minmax(0,1fr)_21rem] lg:gap-4 lg:px-6 lg:pb-6">
-        <section className="flex min-h-0 flex-col gap-3">
-          <RecommendedAction
-            hand={state.player.hand}
-            melds={state.player.melds}
-            seatWind={state.player.seatWind}
-            config={state.config}
-            isRiichi={state.player.isRiichi}
-            isTsumo={state.phase === 'discard'}
-            lastOpponentDiscard={state.lastOpponentDiscard}
-            analysis={analysis}
-          />
-
+      <main className="mx-auto flex w-full max-w-screen-2xl flex-col gap-3 px-3 pb-36 pt-3 sm:px-4 sm:pb-40 lg:grid lg:grid-cols-[minmax(0,1fr)_21rem] lg:gap-4 lg:px-6 lg:pb-8">
+        <section className="flex min-w-0 flex-col gap-3">
           <CurrentHand
             hand={state.player.hand}
             selectedTileId={selectedTileId}
@@ -159,46 +148,84 @@ function GameTable({ initialState }: { initialState: GameState }) {
             onDiscardSelected={handleDiscardSelected}
           />
 
-          <div className="hidden min-h-0 gap-3 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-            <div className="min-h-0 overflow-y-auto rounded-[1.5rem] border border-gray-800 bg-gray-900/90 p-4">
-              <GameInfo player={state.player} config={state.config} />
-            </div>
-            <div className="min-h-0 overflow-y-auto rounded-[1.5rem] border border-gray-800 bg-gray-900/90 p-4">
-              <YakuPanel
-                hand={state.player.hand}
-                melds={state.player.melds}
-                seatWind={state.player.seatWind}
-                config={state.config}
-                isRiichi={state.player.isRiichi}
-                drawnTile={state.drawnTile}
-                phase={state.phase}
-                lastOpponentDiscard={state.lastOpponentDiscard}
-              />
-            </div>
-          </div>
+          <div className="space-y-3">
+            <RecommendedAction
+              hand={state.player.hand}
+              melds={state.player.melds}
+              seatWind={state.player.seatWind}
+              config={state.config}
+              isRiichi={state.player.isRiichi}
+              isTsumo={state.phase === 'discard'}
+              lastOpponentDiscard={state.lastOpponentDiscard}
+              analysis={analysis}
+            />
 
-          {state.player.discards.length > 0 && (
-            <div className="hidden rounded-[1.5rem] border border-gray-800 bg-gray-900/90 p-4 lg:block">
-              <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-gray-500">
-                Your Discards
-              </h3>
-              <div className="flex flex-wrap gap-1.5">
-                {state.player.discards.map(tile => (
-                  <div
-                    key={tile.id}
-                    className="flex h-9 w-7 items-center justify-center rounded border border-amber-200 bg-amber-50 text-xs font-bold text-gray-700"
-                    title={tileLabel(tile)}
-                  >
-                    {tileLabel(tile)}
-                  </div>
-                ))}
+            <div className="hidden gap-3 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+              <div className="rounded-[1.5rem] border border-gray-800 bg-gray-900/90 p-4">
+                <GameInfo player={state.player} config={state.config} />
+              </div>
+              <div className="rounded-[1.5rem] border border-gray-800 bg-gray-900/90 p-4">
+                <YakuPanel
+                  hand={state.player.hand}
+                  melds={state.player.melds}
+                  seatWind={state.player.seatWind}
+                  config={state.config}
+                  isRiichi={state.player.isRiichi}
+                  drawnTile={state.drawnTile}
+                  phase={state.phase}
+                  lastOpponentDiscard={state.lastOpponentDiscard}
+                />
               </div>
             </div>
-          )}
+
+            <div className="space-y-3 lg:hidden">
+              <div className="rounded-[1.5rem] border border-gray-800 bg-gray-900/90 p-4">
+                <GameInfo player={state.player} config={state.config} />
+              </div>
+              <div className="rounded-[1.5rem] border border-gray-800 bg-gray-900/90 p-4">
+                <YakuPanel
+                  hand={state.player.hand}
+                  melds={state.player.melds}
+                  seatWind={state.player.seatWind}
+                  config={state.config}
+                  isRiichi={state.player.isRiichi}
+                  drawnTile={state.drawnTile}
+                  phase={state.phase}
+                  lastOpponentDiscard={state.lastOpponentDiscard}
+                />
+              </div>
+              <div className="rounded-[1.75rem] border border-gray-800 bg-gray-900/90 p-4">
+                <OpponentTracking
+                  opponents={state.opponents}
+                  onDiscard={opponentDiscard}
+                  onRiichi={opponentRiichi}
+                />
+              </div>
+            </div>
+
+            {state.player.discards.length > 0 && (
+              <div className="rounded-[1.5rem] border border-gray-800 bg-gray-900/90 p-4">
+                <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-gray-500">
+                  Your Discards
+                </h3>
+                <div className="flex flex-wrap gap-1.5">
+                  {state.player.discards.map(tile => (
+                    <div
+                      key={tile.id}
+                      className="flex h-9 w-7 items-center justify-center rounded border border-amber-200 bg-amber-50 text-xs font-bold text-gray-700"
+                      title={tileLabel(tile)}
+                    >
+                      {tileLabel(tile)}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </section>
 
-        <aside className="hidden min-h-0 flex-col gap-4 lg:flex">
-          <div className="min-h-0 overflow-y-auto rounded-[1.75rem] border border-gray-800 bg-gray-900/90 p-4">
+        <aside className="hidden flex-col gap-4 lg:flex">
+          <div className="rounded-[1.75rem] border border-gray-800 bg-gray-900/90 p-4 lg:sticky lg:top-[12rem]">
             <OpponentTracking
               opponents={state.opponents}
               onDiscard={opponentDiscard}

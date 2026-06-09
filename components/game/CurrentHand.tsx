@@ -34,7 +34,7 @@ export function CurrentHand({
   onDiscardSelected,
 }: CurrentHandProps) {
   return (
-    <div className="space-y-3 rounded-[1.5rem] border border-gray-800 bg-gray-900/90 p-4 shadow-[0_12px_30px_rgba(0,0,0,0.24)]">
+    <div className="sticky top-[11.25rem] z-10 space-y-3 rounded-[1.5rem] border border-gray-800 bg-gray-900/95 p-4 shadow-[0_12px_30px_rgba(0,0,0,0.24)] backdrop-blur sm:top-[11.75rem] lg:top-[12rem]">
       <div className="flex items-start justify-between gap-3">
         <div className="space-y-1">
           <h3 className="text-xs font-semibold uppercase tracking-[0.22em] text-gray-400">
