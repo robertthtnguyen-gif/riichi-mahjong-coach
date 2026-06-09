@@ -20,6 +20,7 @@ interface ActionPanelProps {
   onKan: (meldTiles: Tile[]) => void;
   onOpponentDiscard: (position: OpponentPosition, tile: Tile) => void;
   onOpponentRiichi: (position: OpponentPosition) => void;
+  focusMode?: boolean;
 }
 
 type ActiveSheet = 'draw' | 'opponent' | 'chi' | 'pon' | 'kan' | null;
@@ -151,6 +152,7 @@ export function ActionPanel({
   onKan,
   onOpponentDiscard,
   onOpponentRiichi,
+  focusMode = false,
 }: ActionPanelProps) {
   const [activeSheet, setActiveSheet] = useState<ActiveSheet>(null);
   const [activeOpponent, setActiveOpponent] = useState<OpponentPosition>('left');
@@ -198,15 +200,20 @@ export function ActionPanel({
   return (
     <>
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-gray-800 bg-gray-950/95 px-3 pb-[calc(env(safe-area-inset-bottom)+0.85rem)] pt-3 backdrop-blur xl:static xl:rounded-[1.75rem] xl:border xl:bg-gray-900/90 xl:px-4 xl:pb-4 xl:pt-4">
-        <div className="mx-auto grid max-w-3xl grid-cols-6 gap-2">
-          {[
+        <div className={`mx-auto grid max-w-3xl gap-2 ${focusMode ? 'grid-cols-2' : 'grid-cols-6'}`}>
+          {(focusMode
+            ? [
+                { key: 'draw', label: 'Draw', disabled: !canDraw },
+                { key: 'opponent', label: 'Opponent', disabled: false },
+              ]
+            : [
             { key: 'draw', label: 'Draw', disabled: !canDraw },
             { key: 'opponent', label: 'Opponent', disabled: false },
             { key: 'chi', label: 'Chi', disabled: !canChi },
             { key: 'pon', label: 'Pon', disabled: !canPon },
             { key: 'kan', label: 'Kan', disabled: !canKan },
             { key: 'riichi', label: 'Riichi', disabled: !canRiichi },
-          ].map(action => (
+          ]).map(action => (
             <button
               key={action.key}
               type="button"

@@ -4,7 +4,7 @@ import { Tile } from '@/lib/types';
 
 interface TileDisplayProps {
   tile: Tile;
-  size?: 'xs' | 'sm' | 'md';
+  size?: 'xs' | 'sm' | 'md' | 'compact';
   selected?: boolean;
   onClick?: () => void;
   disabled?: boolean;
@@ -36,9 +36,10 @@ function getTileTextColor(tile: Tile): string {
 }
 
 const SIZE_CLASSES: Record<string, string> = {
-  xs: 'w-7 h-9 text-xs',
-  sm: 'w-9 h-12 text-xs',
+  xs: 'h-8 w-6 text-[10px]',
+  sm: 'h-10 w-7 text-[11px]',
   md: 'w-11 h-14 text-sm',
+  compact: 'h-9 w-6.5 text-[10px]',
 };
 
 export function TileDisplay({ tile, size = 'md', selected, onClick, disabled }: TileDisplayProps) {
@@ -47,7 +48,7 @@ export function TileDisplay({ tile, size = 'md', selected, onClick, disabled }: 
   const sizeClass = SIZE_CLASSES[size];
   const isInteractive = !!onClick && !disabled;
 
-  const baseClasses = `${sizeClass} rounded border-2 font-bold flex items-center justify-center transition-all duration-150 select-none bg-amber-50 shadow-sm`;
+  const baseClasses = `${sizeClass} rounded border-2 font-bold flex items-center justify-center px-0.5 transition-all duration-150 select-none bg-amber-50 shadow-sm`;
 
   const stateClasses = selected
     ? 'border-blue-500 -translate-y-2 shadow-lg ring-2 ring-blue-300'

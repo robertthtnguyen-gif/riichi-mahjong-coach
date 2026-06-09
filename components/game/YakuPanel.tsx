@@ -19,6 +19,7 @@ interface YakuPanelProps {
   drawnTile: Tile | null;
   phase: 'draw' | 'discard';
   lastOpponentDiscard: OpponentDiscardEvent | null;
+  collapsed?: boolean;
 }
 
 function formatYakuName(name: string): string {
@@ -48,6 +49,7 @@ export function YakuPanel({
   drawnTile,
   phase,
   lastOpponentDiscard,
+  collapsed = false,
 }: YakuPanelProps) {
   const context = useMemo<YakuContext>(
     () => ({
@@ -85,17 +87,8 @@ export function YakuPanel({
     );
   }, [lastOpponentDiscard, winningTiles]);
 
-  return (
-    <div className="space-y-4 rounded-xl border border-indigo-500/30 bg-gray-800 p-4">
-      <div className="flex items-center justify-between gap-3">
-        <h3 className="text-xs font-semibold uppercase tracking-[0.22em] text-indigo-300">
-          Yaku
-        </h3>
-        <span className="rounded-full bg-indigo-500/15 px-2.5 py-1 text-xs font-semibold text-indigo-200">
-          Han {result.han}
-        </span>
-      </div>
-
+  const body = (
+    <div className="space-y-4">
       {ronOpportunity && (
         <div className="space-y-2 rounded-xl border border-rose-400/50 bg-rose-500/15 p-4">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-rose-200">
@@ -188,6 +181,29 @@ export function YakuPanel({
             </p>
           ))}
         </div>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="rounded-xl border border-indigo-500/30 bg-gray-800 p-4">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-xs font-semibold uppercase tracking-[0.22em] text-indigo-300">
+          Yaku
+        </h3>
+        <span className="rounded-full bg-indigo-500/15 px-2.5 py-1 text-xs font-semibold text-indigo-200">
+          Han {result.han}
+        </span>
+      </div>
+      {collapsed ? (
+        <details className="mt-3">
+          <summary className="cursor-pointer list-none rounded-lg border border-gray-700 bg-gray-900/40 px-3 py-2 text-sm font-medium text-white">
+            Show yaku details
+          </summary>
+          <div className="mt-3">{body}</div>
+        </details>
+      ) : (
+        <div className="mt-4">{body}</div>
       )}
     </div>
   );
